@@ -535,7 +535,7 @@ func ShareWithUserId(credentials auth.CookieCredentials, albumId string, shareWi
 	form.Add("f.req", string(jsonString))
 	form.Add("at", credentials.RuntimeParameters.AtToken)
 
-	req, err := http.NewRequest("POST", CreateAlbumUrl, strings.NewReader(form.Encode()))
+	req, err := http.NewRequest("POST", ShareAlbumUrl, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("can't create the request to share the album: %v", err.Error())
 	}
