@@ -146,9 +146,9 @@ func DeleteAlbum(credentials auth.CookieCredentials, albumId string) error {
 		[]interface{}{},
 		[]interface{}{
 			[]interface{}{
-				albumId,
-				nil,
-				0,
+				albumId, // Own albumId (AF1QipP5CHoTNeAsjAdNQDbfaWTI0A2oJp_er5PSNSFs)
+				nil,     // TODO Find Other string (shared album Id?) (AF1QipN4Q7SPvfG2agzCI_ZTH2Hp7zNTGSOcH4MhUuCmNHxKr1JfU3Uz-vg7heZ2z195PA)
+				0,       // TODO Find Integer (528 for instance)
 			},
 		},
 	}
@@ -178,7 +178,7 @@ func DeleteAlbum(credentials auth.CookieCredentials, albumId string) error {
 func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) ([]Album, error) {
 	var (
 		nextPageToken interface{}
-		allAlbums     []Album = []Album{}
+		allAlbums     = []Album{}
 		albums        []Album
 		err           error
 	)
@@ -231,8 +231,8 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 		return nil, nil, err
 	}
 
-	var albums []Album = []Album{}
-	jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	albums := []Album{}
+	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		var album Album
 		album.AlbumId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
@@ -254,4 +254,28 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 		return albums, nil, nil
 	}
 	return albums, nextPageToken, nil
+}
+
+// Delete empty albums
+func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []Album, error) {
+	var deleted, notDeleted []Album
+	albums, err := ListAllAlbums(credentials, func(albumsPart []Album, err error) {
+		// No album?
+		if len(albumsPart) == 0 {
+			return
+		}
+
+		// Delete empty albums
+		for _, album := range albumsPart {
+			if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
+				err = DeleteAlbum(credentials, album.AlbumId)
+				if err != nil {
+					notDeleted = append(notDeleted, album)
+				} else {
+					deleted = append(deleted, album)
+				}
+			}
+		}
+	})
+	return albums, deleted, notDeleted, err
 }

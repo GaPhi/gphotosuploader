@@ -25,6 +25,7 @@ var (
 	// CLI arguments
 	authFile             string
 	deleteBefore         int64
+	deleteEmptyAlbums    bool
 	filesToUpload        utils.FilesToUpload
 	directoriesToWatch   utils.DirectoriesToWatch
 	albumId              string
@@ -109,29 +110,22 @@ func main() {
 	}
 
 	// Delete empty albums
-	if false {
-		albums, err := api.ListAllAlbums(credentials, func(albumsPart []api.Album, err error) {
-			// No album?
-			if len(albumsPart) == 0 {
-				return
+	if deleteEmptyAlbums {
+		albums, deleted, notDeleted, err := api.DeleteEmptyAlbums(credentials)
+		if deleted != nil {
+			for _, album := range deleted {
+				log.Printf("Empty album %v (%v) deleted\n", album.AlbumName, album.AlbumId)
 			}
-
-			// Delete empty albums
-			for _, album := range albumsPart {
-				if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
-					err = api.DeleteAlbum(credentials, album.AlbumId)
-					if err != nil {
-						log.Printf("Empty album %v (%v) deletion FAILED: %v\n", album.AlbumName, album.AlbumId, err)
-					} else {
-						log.Printf("Empty album %v (%v) deleted\n", album.AlbumName, album.AlbumId)
-					}
-				}
+		}
+		if notDeleted != nil {
+			for _, album := range notDeleted {
+				log.Printf("Empty album %v (%v) deletion FAILED\n", album.AlbumName, album.AlbumId)
 			}
-		})
-		if err != nil {
-			log.Fatalf("Can't list albums: %v\n", err)
 		}
 		log.Printf("Album listed: %v\n", len(albums))
+		if err != nil {
+			log.Printf("Can't list albums: %v\n", err)
+		}
 	}
 
 	// Create Album first to get albumId
@@ -174,7 +168,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		defer watcher.Close()
+		defer func(watcher *fsnotify.Watcher) {
+			_ = watcher.Close()
+		}(watcher)
 		go handleFileSystemEvents(watcher, stopHandler)
 
 		// Add all the directories passed as argument to the watcher
@@ -205,6 +201,7 @@ func main() {
 func parseCliArguments() {
 	flag.StringVar(&authFile, "auth", "auth.json", "Authentication json file")
 	flag.Int64Var(&deleteBefore, "deleteBefore", noDeleteBefore, "Use this parameter to delete existing media items created before this date (Unix timestamp in ms)")
+	flag.BoolVar(&deleteEmptyAlbums, "deleteEmptyAlbums", false, "Delete empty albums")
 	flag.Var(&filesToUpload, "upload", "File or directory to upload")
 	flag.StringVar(&albumId, "album", "", "Use this parameter to move new images to a specific album")
 	flag.StringVar(&albumName, "albumName", "", "Use this parameter to move new images to a new album")
@@ -308,7 +305,7 @@ func handleUploaderEvents(exiting chan bool) {
 				log.Println("Can't update the uploaded file list")
 			} else {
 				file.WriteString(info + "\n")
-				file.Close()
+				_ = file.Close()
 			}
 
 		case info := <-uploader.IgnoredUploads:
@@ -391,7 +388,9 @@ func loadAlreadyUploadedFiles() {
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

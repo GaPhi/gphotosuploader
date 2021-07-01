@@ -22,7 +22,7 @@ type TimelineEntry struct {
 func GetWholeTimeline(credentials auth.CookieCredentials) ([]TimelineEntry, error) {
 	var (
 		nextPageToken interface{}
-		allEntries    []TimelineEntry = []TimelineEntry{}
+		allEntries    = []TimelineEntry{}
 		entries       []TimelineEntry
 		err           error
 	)
@@ -67,8 +67,8 @@ func GetTimelineEntries(credentials auth.CookieCredentials, pageToken interface{
 		return nil, nil, err
 	}
 
-	var entries []TimelineEntry = []TimelineEntry{}
-	jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	entries := []TimelineEntry{}
+	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		var entry TimelineEntry
 		entry.from, err = jsonparser.GetInt(value, "[0]")
 		if err != nil {
