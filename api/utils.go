@@ -27,7 +27,7 @@ func responseReadingError() error {
 }
 
 func unexpectedResponse(jsonRes []byte) error {
-	return fmt.Errorf("unexpected JSON response structure: %v", jsonRes)
+	return fmt.Errorf("unexpected JSON response structure: %v", string(jsonRes))
 }
 
 // doRequest posts up to 3 times the request
