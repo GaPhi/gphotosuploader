@@ -136,30 +136,41 @@ func ListMediaItems(credentials auth.CookieCredentials, before interface{}, page
 // kind=2 for Immediate deletion
 // kind=3 for Restore from trash
 func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string, kind int) error {
-	innerJson := []interface{}{
-		mediaItemIds,
-		kind,
-	}
-	innerJsonString, err := json.Marshal(innerJson)
-	if err != nil {
-		return err
-	}
-	jsonReq := []interface{}{
-		[]interface{}{
-			[]interface{}{
-				"XwAOJf",
-				string(innerJsonString),
-				nil,
-				nil,
-				nil,
-				"generic",
-			},
-		},
-	}
-	_, err = doRequest(credentials, jsonReq)
-	if err != nil {
-		return err
-	}
+	// 50 max at once (TODO Check actual limit value)
+	for len(mediaItemIds) > 0 {
+		var ids []string
+		if len(mediaItemIds) > 50 {
+			ids = mediaItemIds[0:50]
+			mediaItemIds = mediaItemIds[50:]
+		} else {
+			ids = mediaItemIds
+			mediaItemIds = []string{}
+		}
 
+		innerJson := []interface{}{
+			ids,
+			kind,
+		}
+		innerJsonString, err := json.Marshal(innerJson)
+		if err != nil {
+			return err
+		}
+		jsonReq := []interface{}{
+			[]interface{}{
+				[]interface{}{
+					"XwAOJf",
+					string(innerJsonString),
+					nil,
+					nil,
+					nil,
+					"generic",
+				},
+			},
+		}
+		_, err = doRequest(credentials, jsonReq)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
