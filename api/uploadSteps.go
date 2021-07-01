@@ -7,29 +7,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/buger/jsonparser"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
 )
 
 const (
 	// NewUploadURL : Url to which send the request to get a new url to upload a new image
 	NewUploadURL = "https://photos.google.com/_/upload/uploadmedia/rupio/interactive?authuser=2"
-
-	// Url to which send the request to enable an uploaded image
-	//EnablePhotoUrl = "https://photos.google.com/_/PhotosUi/mutate"
-	EnablePhotoUrl = "https://photos.google.com/u/2/_/PhotosUi/data/batchexecute"
-
-	// Url to move an enabled photo into a specific album
-	MoveToAlbumUrl = "https://photos.google.com/u/2/_/PhotosUi/data/batchexecute"
-
-	// Url to move an enabled photo into a specific album
-	CreateAlbumUrl = "https://photos.google.com/u/2/_/PhotosUi/data/batchexecute"
-
-	// Url to share a specific album with a specific Google userId
-	ShareAlbumUrl = "https://photos.google.com/u/2/_/PhotosUi/data/batchexecute"
 )
 
 // Method that send a request with the file name and size to generate an upload url.
@@ -133,10 +117,6 @@ func (u *Upload) requestUploadURL() error {
 	return err
 }
 
-func responseReadingError() error {
-	return fmt.Errorf("can't read response")
-}
-
 // This method upload the file to the URL received from requestUploadUrl.
 // When the upload is completed, the method updates the base64UploadToken field
 func (u *Upload) uploadFile() (token string, err error) {
@@ -173,7 +153,6 @@ func (u *Upload) uploadFile() (token string, err error) {
 
 // Request that enables the image once it gets uploaded
 func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err error) {
-
 	innerJson := []interface{}{
 		[]interface{}{
 			[]interface{}{
@@ -187,7 +166,6 @@ func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err e
 	if err != nil {
 		return "", err
 	}
-
 	jsonReq := []interface{}{
 		[]interface{}{
 			[]interface{}{
@@ -198,68 +176,21 @@ func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err e
 			},
 		},
 	}
-
-	jsonStr, err := json.Marshal(jsonReq)
+	innerJsonRes, err := doRequest(u.Credentials, jsonReq)
 	if err != nil {
 		return "", err
 	}
 
-	// Form that contains the two request field
-	form := url.Values{}
-
-	// And add it to the form
-	form.Add("f.req", string(jsonStr))
-
-	// Second field of the form: "at", which should be an API key or something
-	form.Add("at", u.Credentials.RuntimeParameters.AtToken)
-
-	// Create the request
-	req, err := http.NewRequest("POST", EnablePhotoUrl, strings.NewReader(form.Encode()))
+	eUrl, err := jsonparser.GetString(innerJsonRes, "[0]", "[0]", "[1]", "[1]", "[0]")
 	if err != nil {
-		return "", fmt.Errorf("can't create the request to enable the image: %v", err.Error())
+		return "", unexpectedResponse(innerJsonRes)
 	}
-
-	// Add headers
-	req.Header.Add("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	// Send the request
-	res, err := u.Credentials.Client.Do(req)
+	u.idToMoveIntoAlbum, err = jsonparser.GetString(innerJsonRes, "[0]", "[0]", "[1]", "[0]")
 	if err != nil {
-		return "", fmt.Errorf("error during the request to enable the image: %v", err.Error())
-	}
-	defer res.Body.Close()
-
-	// Read the response as a string
-	jsonRes, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", responseReadingError()
-	}
-
-	// Skip first characters which are not valid json
-	jsonRes = jsonRes[6:]
-
-	innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-	eUrl, err := jsonparser.GetString([]byte(innerJsonRes), "[0]", "[0]", "[1]", "[1]", "[0]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-	u.idToMoveIntoAlbum, err = jsonparser.GetString([]byte(innerJsonRes), "[0]", "[0]", "[1]", "[0]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-
-	if err != nil {
-		fmt.Println(err)
+		return "", unexpectedResponse(innerJsonRes)
 	}
 
 	return eUrl, nil
-}
-
-func unexpectedResponse() error {
-	return fmt.Errorf("unexpected JSON response structure")
 }
 
 // This method add the image to an existing album given the id
@@ -276,7 +207,6 @@ func (u *Upload) moveToAlbum(albumId string) error {
 	if err != nil {
 		return err
 	}
-
 	jsonReq := []interface{}{
 		[]interface{}{
 			[]interface{}{
@@ -286,26 +216,10 @@ func (u *Upload) moveToAlbum(albumId string) error {
 			},
 		},
 	}
-	jsonString, err := json.Marshal(jsonReq)
+	_, err = doRequest(u.Credentials, jsonReq)
 	if err != nil {
 		return err
 	}
-
-	form := url.Values{}
-	form.Add("f.req", string(jsonString))
-	form.Add("at", u.Credentials.RuntimeParameters.AtToken)
-
-	req, err := http.NewRequest("POST", MoveToAlbumUrl, strings.NewReader(form.Encode()))
-	if err != nil {
-		return fmt.Errorf("can't create the request to add the image into the album: %v", err.Error())
-	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	res, err := u.Credentials.Client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending the request to move the image: %v", err.Error())
-	}
-	defer res.Body.Close()
 
 	// The image should now be part of the album
 	return nil
@@ -313,7 +227,6 @@ func (u *Upload) moveToAlbum(albumId string) error {
 
 // Create Album
 func (u *Upload) createAlbum(albumName string) (string, error) {
-
 	if u.idToMoveIntoAlbum == "" {
 		return "", errors.New(fmt.Sprint("can't create album without the enabled image id"))
 	}
@@ -344,227 +257,15 @@ func (u *Upload) createAlbum(albumName string) (string, error) {
 			},
 		},
 	}
-	jsonString, err := json.Marshal(jsonReq)
+	innerJsonRes, err := doRequest(u.Credentials, jsonReq)
 	if err != nil {
 		return "", err
 	}
 
-	form := url.Values{}
-	form.Add("f.req", string(jsonString))
-	form.Add("at", u.Credentials.RuntimeParameters.AtToken)
-
-	req, err := http.NewRequest("POST", CreateAlbumUrl, strings.NewReader(form.Encode()))
+	albumId, err := jsonparser.GetString(innerJsonRes, "[0]", "[0]")
 	if err != nil {
-		return "", fmt.Errorf("can't create the request to add the image into the album: %v", err.Error())
-	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	res, err := u.Credentials.Client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error sending the request to move the image: %v", err.Error())
-	}
-	defer res.Body.Close()
-
-	// Read the response as a string
-	jsonRes, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", responseReadingError()
-	}
-
-	// Skip first characters which are not valid json
-	jsonRes = jsonRes[6:]
-
-	innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-
-	albumId, err := jsonparser.GetString([]byte(innerJsonRes), "[0]", "[0]")
-	if err != nil {
-		return "", unexpectedResponse()
+		return "", unexpectedResponse(innerJsonRes)
 	}
 
 	return albumId, nil
-}
-
-// Create Album
-func CreateAlbum(credentials auth.CookieCredentials, albumName string) (string, error) {
-	innerJson := []interface{}{
-		albumName,
-		nil,
-		2,
-		[]interface{}{},
-	}
-	innerJsonString, err := json.Marshal(innerJson)
-	if err != nil {
-		return "", err
-	}
-	jsonReq := []interface{}{
-		[]interface{}{
-			[]interface{}{
-				"OXvT9d",
-				string(innerJsonString),
-				nil,
-				"generic",
-			},
-		},
-	}
-	jsonString, err := json.Marshal(jsonReq)
-	if err != nil {
-		return "", err
-	}
-
-	form := url.Values{}
-	form.Add("f.req", string(jsonString))
-	form.Add("at", credentials.RuntimeParameters.AtToken)
-
-	req, err := http.NewRequest("POST", CreateAlbumUrl, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("can't create the request to add the image into the album: %v", err.Error())
-	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	res, err := credentials.Client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error sending the request to move the image: %v", err.Error())
-	}
-	defer res.Body.Close()
-
-	// Read the response as a string
-	jsonRes, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", responseReadingError()
-	}
-
-	// Skip first characters which are not valid json
-	jsonRes = jsonRes[6:]
-
-	innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-
-	albumId, err := jsonparser.GetString([]byte(innerJsonRes), "[0]", "[0]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-
-	return albumId, nil
-}
-
-// Share Album
-func ShareWithUserId(credentials auth.CookieCredentials, albumId string, shareWithUserId string) (string, error) {
-	innerJson := []interface{}{
-		nil,
-		nil,
-		[]interface{}{
-			nil,
-			true,
-			nil,
-			nil,
-			true,
-			nil,
-			[]interface{}{
-				[]interface{}{ []interface{}{ 1, 1 }, true },
-				[]interface{}{ []interface{}{ 1, 2 }, true },
-				[]interface{}{ []interface{}{ 2, 1 }, true },
-				[]interface{}{ []interface{}{ 2, 2 }, true },
-				[]interface{}{ []interface{}{ 3, 1 }, false },
-			},
-		},
-		[]interface{}{
-			1,
-			[]interface{}{ []interface{}{ albumId }, []interface{}{ 1, 2, 3 } },
-			[]interface{}{},
-			nil,
-			nil,
-			[]interface{}{},
-			[]interface{}{ 1 },
-			nil,
-			nil,
-			nil,
-			[]interface{}{
-			},
-		},
-		nil,
-		[]interface{}{
-			[]interface{}{
-				[]interface{}{
-					[]interface{}{ 2, shareWithUserId },
-					nil,
-					nil,
-					nil,
-					nil,
-					[]interface{}{
-						2,
-						shareWithUserId,
-						[]interface{}{
-							nil,
-							shareWithUserId,
-							0,
-							nil,
-						},
-					},
-				},
-			},
-		},
-		nil,
-		nil,
-		[]interface{}{ 1, 2, 3 },
-	}
-	innerJsonString, err := json.Marshal(innerJson)
-	if err != nil {
-		return "", err
-	}
-	jsonReq := []interface{}{
-		[]interface{}{
-			[]interface{}{
-				"SFKp8c",
-				string(innerJsonString),
-				nil,
-				"generic",
-			},
-		},
-	}
-	jsonString, err := json.Marshal(jsonReq)
-	if err != nil {
-		return "", err
-	}
-
-	form := url.Values{}
-	form.Add("f.req", string(jsonString))
-	form.Add("at", credentials.RuntimeParameters.AtToken)
-
-	req, err := http.NewRequest("POST", ShareAlbumUrl, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("can't create the request to share the album: %v", err.Error())
-	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	res, err := credentials.Client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error sending the request to share the album: %v", err.Error())
-	}
-	defer res.Body.Close()
-
-	// Read the response as a string
-	jsonRes, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", responseReadingError()
-	}
-
-	// Skip first characters which are not valid json
-	jsonRes = jsonRes[6:]
-
-	innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-
-	sharedAlbumId, err := jsonparser.GetString([]byte(innerJsonRes), "[0]")
-	if err != nil {
-		return "", unexpectedResponse()
-	}
-
-	return sharedAlbumId, nil
 }

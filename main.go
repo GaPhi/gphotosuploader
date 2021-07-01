@@ -19,9 +19,12 @@ import (
 	"github.com/simonedegiacomi/gphotosuploader/version"
 )
 
+const noDeleteBefore = -1 << 63
+
 var (
 	// CLI arguments
 	authFile             string
+	deleteBefore         int64
 	filesToUpload        utils.FilesToUpload
 	directoriesToWatch   utils.DirectoriesToWatch
 	albumId              string
@@ -55,6 +58,82 @@ func main() {
 
 	var err error
 
+	// Get timeline
+	if false {
+		timeline, err := api.GetWholeTimeline(credentials)
+		if err != nil {
+			log.Fatalf("Can't get timeline: %v\n", err)
+		}
+		log.Printf("Got timeline: %v\n", len(timeline))
+	}
+
+	// Empty trash
+	if false {
+		err = api.EmptyTrash(credentials)
+		if err != nil {
+			log.Fatalf("Can't empty trash: %v\n", err)
+		}
+		log.Printf("Trash emptied\n")
+	}
+
+	// Delete too old media items
+	if deleteBefore != noDeleteBefore {
+		log.Printf("Deleting media items before %v...\n", time.Unix(0, deleteBefore*1000000).Local())
+		mediaItems, err := api.ListAllMediaItemsBefore(credentials, deleteBefore, func(mediaItemsPart []api.MediaItem, err error) {
+			// No item?
+			if len(mediaItemsPart) == 0 {
+				return
+			}
+
+			// Get ids as an array
+			ids := make([]string, len(mediaItemsPart))
+			for i, mediaItem := range mediaItemsPart {
+				ids[i] = mediaItem.MediaItemId
+			}
+
+			// Immediately delete (kind=2) too old media items
+			err = api.DeleteMediaItems(credentials, ids, 2)
+			if err != nil {
+				log.Printf("Media items deletion FAILED: %v\n", err)
+			} else {
+				log.Printf("%v media items deleted between %v and %v\n",
+					len(ids),
+					time.Unix(0, mediaItemsPart[len(mediaItemsPart)-1].StartDate*1000000).Local(),
+					time.Unix(0, mediaItemsPart[0].StartDate*1000000).Local())
+			}
+		})
+		if err != nil {
+			log.Fatalf("Can't delete old media items: %v\n", err)
+		}
+		log.Printf("Media items deleted: %v\n", len(mediaItems))
+	}
+
+	// Delete empty albums
+	if false {
+		albums, err := api.ListAllAlbums(credentials, func(albumsPart []api.Album, err error) {
+			// No album?
+			if len(albumsPart) == 0 {
+				return
+			}
+
+			// Delete empty albums
+			for _, album := range albumsPart {
+				if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
+					err = api.DeleteAlbum(credentials, album.AlbumId)
+					if err != nil {
+						log.Printf("Empty album %v (%v) deletion FAILED: %v\n", album.AlbumName, album.AlbumId, err)
+					} else {
+						log.Printf("Empty album %v (%v) deleted\n", album.AlbumName, album.AlbumId)
+					}
+				}
+			}
+		})
+		if err != nil {
+			log.Fatalf("Can't list albums: %v\n", err)
+		}
+		log.Printf("Album listed: %v\n", len(albums))
+	}
+
 	// Create Album first to get albumId
 	if albumName != "" {
 		albumId, err = api.CreateAlbum(credentials, albumName)
@@ -63,9 +142,10 @@ func main() {
 		}
 		log.Printf("New album with ID '%v' created\n", albumId)
 	}
+
 	// Share Album with a Google userId
 	if shareWithUserId != "" {
-		sharedAlbumId, err = api.ShareWithUserId(credentials, albumId, shareWithUserId)
+		sharedAlbumId, err = api.AlbumShareWithUserId(credentials, albumId, shareWithUserId)
 		if err != nil {
 			log.Fatalf("Can't share album: %v\n", err)
 		}
@@ -124,6 +204,7 @@ func main() {
 // Parse CLI arguments
 func parseCliArguments() {
 	flag.StringVar(&authFile, "auth", "auth.json", "Authentication json file")
+	flag.Int64Var(&deleteBefore, "deleteBefore", noDeleteBefore, "Use this parameter to delete existing media items created before this date (Unix timestamp in ms)")
 	flag.Var(&filesToUpload, "upload", "File or directory to upload")
 	flag.StringVar(&albumId, "album", "", "Use this parameter to move new images to a specific album")
 	flag.StringVar(&albumName, "albumName", "", "Use this parameter to move new images to a new album")
@@ -138,6 +219,9 @@ func parseCliArguments() {
 	flag.Parse()
 
 	// Check flags
+	if deleteBefore > time.Now().UnixNano()/1000000 {
+		log.Fatalf("Invalid delteBefore date (after now)\n")
+	}
 	if albumId != "" && albumName != "" {
 		log.Fatalf("Can't use album and albumName at the same time\n")
 	}
@@ -157,7 +241,6 @@ func initAuthentication() auth.CookieCredentials {
 		validity, err := credentials.CheckCredentials()
 		if err != nil {
 			log.Fatalf("Can't check validity of credentials (%v)\n", err)
-			credentials = nil
 		} else if !validity.Valid {
 			log.Printf("Credentials are not valid! %v\n", validity.Reason)
 			credentials = nil
