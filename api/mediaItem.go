@@ -91,43 +91,38 @@ func ListMediaItems(credentials auth.CookieCredentials, before interface{}, page
 	}
 
 	var mediaItems []MediaItem = []MediaItem{}
-	if len(innerJsonRes) > 2 {
-		_, err = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			var mediaItem MediaItem
-			mediaItem.MediaItemId, err = jsonparser.GetString(value, "[0]")
-			if err != nil {
-				return
-			}
-			mediaItem.ContentUrl, err = jsonparser.GetString(value, "[1]", "[0]")
-			if err != nil {
-				return
-			}
-			mediaItem.ContentWidth, err = jsonparser.GetInt(value, "[1]", "[1]")
-			if err != nil {
-				return
-			}
-			mediaItem.ContentHeight, err = jsonparser.GetInt(value, "[1]", "[2]")
-			if err != nil {
-				return
-			}
-			mediaItem.StartDate, err = jsonparser.GetInt(value, "[2]")
-			if err != nil {
-				return
-			}
-			mediaItem.EndDate, err = jsonparser.GetInt(value, "[5]")
-			if err != nil {
-				return
-			}
-			mediaItem.MediaItemSn, err = jsonparser.GetInt(value, "[14]")
-			if err != nil {
-				return
-			}
-			mediaItems = append(mediaItems, mediaItem)
-		}, "[0]")
+	jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		var mediaItem MediaItem
+		mediaItem.MediaItemId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
-			return mediaItems, nil, unexpectedResponse(innerJsonRes)
+			return
 		}
-	}
+		mediaItem.ContentUrl, err = jsonparser.GetString(value, "[1]", "[0]")
+		if err != nil {
+			return
+		}
+		mediaItem.ContentWidth, err = jsonparser.GetInt(value, "[1]", "[1]")
+		if err != nil {
+			return
+		}
+		mediaItem.ContentHeight, err = jsonparser.GetInt(value, "[1]", "[2]")
+		if err != nil {
+			return
+		}
+		mediaItem.StartDate, err = jsonparser.GetInt(value, "[2]")
+		if err != nil {
+			return
+		}
+		mediaItem.EndDate, err = jsonparser.GetInt(value, "[5]")
+		if err != nil {
+			return
+		}
+		mediaItem.MediaItemSn, err = jsonparser.GetInt(value, "[14]")
+		if err != nil {
+			return
+		}
+		mediaItems = append(mediaItems, mediaItem)
+	}, "[0]")
 
 	nextPageToken, err := jsonparser.GetString(innerJsonRes, "[1]")
 	if err != nil {

@@ -232,27 +232,22 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 	}
 
 	var albums []Album = []Album{}
-	if len(innerJson) > 2 {
-		_, err = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			var album Album
-			album.AlbumId, err = jsonparser.GetString(value, "[0]")
-			if err != nil {
-				return
-			}
-			album.AlbumName, err = jsonparser.GetString(value, "[15]", "72930366", "[1]")
-			if err != nil {
-				return
-			}
-			album.MediaCount, err = jsonparser.GetInt(value, "[15]", "72930366", "[3]")
-			if err != nil {
-				return
-			}
-			albums = append(albums, album)
-		}, "[0]")
+	jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		var album Album
+		album.AlbumId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
-			return albums, nil, unexpectedResponse(innerJsonRes)
+			return
 		}
-	}
+		album.AlbumName, err = jsonparser.GetString(value, "[15]", "72930366", "[1]")
+		if err != nil {
+			return
+		}
+		album.MediaCount, err = jsonparser.GetInt(value, "[15]", "72930366", "[3]")
+		if err != nil {
+			return
+		}
+		albums = append(albums, album)
+	}, "[0]")
 
 	nextPageToken, err := jsonparser.GetString(innerJsonRes, "[1]")
 	if err != nil {

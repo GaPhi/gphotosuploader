@@ -30,6 +30,10 @@ func unexpectedResponse(jsonRes []byte) error {
 	return fmt.Errorf("unexpected JSON response structure: %v", string(jsonRes))
 }
 
+func responseFailure(errTxt string, jsonRes []byte) error {
+	return fmt.Errorf("failure: %v (%v)", errTxt, string(jsonRes))
+}
+
 // doRequest posts up to 3 times the request
 // returns innerJson array of bytes if success
 // returns jsonRes array of bytes in case of unexpectedResponse
@@ -67,11 +71,16 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		// Valid response?
 		if bytes.Compare(jsonRes[0:len(jsonHeader)], jsonHeader) == 0 {
 			// Skip first characters
-			innerJsonRes, err := jsonparser.GetString(jsonRes[len(jsonHeader):], "[0]", "[2]")
-			if err != nil {
-				return jsonRes, unexpectedResponse(jsonRes)
+			jsonRes = jsonRes[len(jsonHeader):]
+			innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")
+			if err == nil {
+				return []byte(innerJsonRes), nil
 			}
-			return []byte(innerJsonRes), nil
+			// Example: [["wrb.fr","mdpdU",null,null,null,[8,null,[["type.googleapis.com/social.frontend.photos.data.PhotosCreateMediaItemsFailure",[1,[16550041816,16106127360,null,true,[[3]],0]]]]],"generic"],["di",369],["af.httprm",368,"4309186227030082757",19]]
+			failure, err := jsonparser.GetString(jsonRes, "[5]", "[2]", "[0]", "[0]")
+			if err == nil {
+				return jsonRes, responseFailure(failure, jsonRes)
+			}
 		}
 	}
 

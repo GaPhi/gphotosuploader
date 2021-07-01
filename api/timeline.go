@@ -68,27 +68,22 @@ func GetTimelineEntries(credentials auth.CookieCredentials, pageToken interface{
 	}
 
 	var entries []TimelineEntry = []TimelineEntry{}
-	if len(innerJson) > 2 {
-		_, err = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			var entry TimelineEntry
-			entry.from, err = jsonparser.GetInt(value, "[0]")
-			if err != nil {
-				return
-			}
-			entry.to, err = jsonparser.GetInt(value, "[1]")
-			if err != nil {
-				return
-			}
-			entry.mediaCount, err = jsonparser.GetInt(value, "[2]")
-			if err != nil {
-				return
-			}
-			entries = append(entries, entry)
-		}, "[1]")
+	jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		var entry TimelineEntry
+		entry.from, err = jsonparser.GetInt(value, "[0]")
 		if err != nil {
-			return entries, nil, unexpectedResponse(innerJsonRes)
+			return
 		}
-	}
+		entry.to, err = jsonparser.GetInt(value, "[1]")
+		if err != nil {
+			return
+		}
+		entry.mediaCount, err = jsonparser.GetInt(value, "[2]")
+		if err != nil {
+			return
+		}
+		entries = append(entries, entry)
+	}, "[1]")
 
 	nextPageToken, err := jsonparser.GetString(innerJsonRes, "[2]")
 	if err != nil {
