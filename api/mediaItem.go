@@ -34,7 +34,7 @@ type MediaItem struct {
 func ListAllMediaItemsBefore(credentials auth.CookieCredentials, before interface{}, cb func([]MediaItem, error)) ([]MediaItem, error) {
 	var (
 		nextPageToken interface{}
-		allMediaItems []MediaItem = []MediaItem{}
+		allMediaItems = []MediaItem{}
 		mediaItems    []MediaItem
 		err           error
 	)
@@ -90,8 +90,8 @@ func ListMediaItems(credentials auth.CookieCredentials, before interface{}, page
 		return nil, nil, err
 	}
 
-	var mediaItems []MediaItem = []MediaItem{}
-	jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	mediaItems := []MediaItem{}
+	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		var mediaItem MediaItem
 		mediaItem.MediaItemId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {

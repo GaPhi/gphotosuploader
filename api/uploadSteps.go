@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -105,7 +106,9 @@ func (u *Upload) requestUploadURL() error {
 	if err != nil {
 		return errors.New(fmt.Sprintf("Error during the request to get the upload URL: %v", err.Error()))
 	}
-	defer res.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(res.Body)
 
 	// Parse the json response
 	jsonResponse, err := ioutil.ReadAll(res.Body)
@@ -140,7 +143,9 @@ func (u *Upload) uploadFile() (token string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("can't upload the image, got: %v", err)
 	}
-	defer res.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(res.Body)
 
 	// Parse the response
 	jsonRes, err := ioutil.ReadAll(res.Body)
