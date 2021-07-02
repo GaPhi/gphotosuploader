@@ -61,7 +61,7 @@ func instructUserAndWaitForLogin(webDriver selenium.WebDriver) error {
 
 	// Wait for the user to reach Google Photos Homepage
 	fmt.Println("\nA browser window should now apper with the Google Photos Login page.")
-	fmt.Println("Once you will be redirected to the Google Photos Homepage the browser will clouse automatically.")
+	fmt.Println("Once you will be redirected to the Google Photos Homepage the browser will close automatically.")
 	fmt.Println("Please fill the form and login now")
 	loginCompleted := false
 	for !loginCompleted {
