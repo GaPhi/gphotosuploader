@@ -129,14 +129,14 @@ func (u *Upload) Upload() (*UploadResult, error) {
 	// Enable the photo
 	uploadedImageURL, err := u.enablePhoto(token)
 	if err != nil {
-		log.Println("[WARNING] The file has been uploaded, but the image url in the reply was not found. The image may not appear.")
+		log.Println("[WARNING] The file has been uploaded, but the image URL in the reply was not found. The image may not appear.")
 		return &UploadResult{
 			Uploaded: true,
 		}, err
 	}
 	uploadedImageID, err := getImageIDFromURL(uploadedImageURL)
 	if err != nil {
-		log.Println("[WARNING] the file has been uploaded, but the image URL does not contain its id. The image may not appear.")
+		log.Printf("[WARNING] the file has been uploaded, but the image URL (%v) does not contain its id. The image may not appear.\n", uploadedImageURL)
 		return &UploadResult{
 			Uploaded: true,
 			ImageUrl: uploadedImageURL,
