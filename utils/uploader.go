@@ -147,7 +147,7 @@ func (u *ConcurrentUploader) uploadFile(filePath string, started chan bool) {
 
 	// Try to upload the image
 	if u.stopUploads {
-		u.sendError(filePath, fmt.Errorf("stopping uploads (%v)", filePath))
+		u.sendError(filePath, fmt.Errorf("stopping uploads"))
 	} else if _, err := upload.Upload(); err != nil {
 		u.stopUploads = true
 		u.sendError(filePath, err)
