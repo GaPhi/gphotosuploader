@@ -136,7 +136,7 @@ func (u *Upload) Upload() (*UploadResult, error) {
 	}
 	uploadedImageID, err := getImageIDFromURL(uploadedImageURL)
 	if err != nil {
-		log.Println("[WARNING] the file has been uploaded, but the image URL does not contain its id. The image may not appear.")
+		log.Printf("[WARNING] the file has been uploaded, but the image URL (%v) does not contain its id. The image may not appear.\n", uploadedImageURL)
 		return &UploadResult{
 			Uploaded: true,
 			ImageUrl: uploadedImageURL,

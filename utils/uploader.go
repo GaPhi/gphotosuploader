@@ -30,6 +30,9 @@ type ConcurrentUploader struct {
 	// Flag to indicate if the client is waiting for all the upload to finish
 	waiting bool
 
+	// Flag to indicate that no other upload shall be attempted
+	stopUploads bool
+
 	CompletedUploads chan string
 	IgnoredUploads   chan string
 	Errors           chan error
@@ -98,6 +101,11 @@ func (u *ConcurrentUploader) EnqueueUpload(filePath string) error {
 		return nil
 	}
 
+	if u.stopUploads {
+		u.Errors <- fmt.Errorf("stopping uploads (%v)", filePath)
+		return nil
+	}
+
 	started := make(chan bool)
 	go u.uploadFile(filePath, started)
 	<-started
@@ -139,6 +147,7 @@ func (u *ConcurrentUploader) uploadFile(filePath string, started chan bool) {
 
 	// Try to upload the image
 	if _, err := upload.Upload(); err != nil {
+		u.stopUploads = true
 		u.sendError(filePath, err)
 	} else {
 		u.uploadedFiles[filePath] = true
