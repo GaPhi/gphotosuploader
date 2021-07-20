@@ -11,6 +11,9 @@ type Album struct {
 	// Album identifier
 	AlbumId string
 
+	// Shared album identifier
+	SharedAlbumId interface{}
+
 	// Album name
 	AlbumName string
 
@@ -140,15 +143,17 @@ func AlbumShareWithUserId(credentials auth.CookieCredentials, albumId string, sh
 }
 
 // Delete Albums
-func DeleteAlbum(credentials auth.CookieCredentials, albumId string) error {
+// albumId: Own albumId (AF1QipP5CHoTNeAsjAdNQDbfaWTI0A2oJp_er5PSNSFs)
+// sharedAlbumId: Shared album Id (AF1QipN4Q7SPvfG2agzCI_ZTH2Hp7zNTGSOcH4MhUuCmNHxKr1JfU3Uz-vg7heZ2z195PA)
+func DeleteAlbum(credentials auth.CookieCredentials, albumId string, sharedAlbumId interface{}) error {
 	innerJson := []interface{}{
 		[]interface{}{},
 		[]interface{}{},
 		[]interface{}{
 			[]interface{}{
-				albumId, // Own albumId (AF1QipP5CHoTNeAsjAdNQDbfaWTI0A2oJp_er5PSNSFs)
-				nil,     // TODO Find Other string (shared album Id?) (AF1QipN4Q7SPvfG2agzCI_ZTH2Hp7zNTGSOcH4MhUuCmNHxKr1JfU3Uz-vg7heZ2z195PA)
-				0,       // TODO Find Integer (528 for instance)
+				albumId,
+				sharedAlbumId,
+				0, // TODO Find Integer (528 for instance)
 			},
 		},
 	}
@@ -234,7 +239,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 	albums := []Album{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		var album Album
-		album.AlbumId, err = jsonparser.GetString(value, "[0]")
+		album.SharedAlbumId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
 			return
 		}
@@ -243,6 +248,10 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 			return
 		}
 		album.MediaCount, err = jsonparser.GetInt(value, "[15]", "72930366", "[3]")
+		if err != nil {
+			return
+		}
+		album.AlbumId, err = jsonparser.GetString(value, "[15]", "72930366", "[8]")
 		if err != nil {
 			return
 		}
@@ -268,7 +277,7 @@ func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []
 		// Delete empty albums
 		for _, album := range albumsPart {
 			if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
-				err = DeleteAlbum(credentials, album.AlbumId)
+				err = DeleteAlbum(credentials, album.AlbumId, album.SharedAlbumId)
 				if err != nil {
 					notDeleted = append(notDeleted, album)
 				} else {
