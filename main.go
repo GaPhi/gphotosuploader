@@ -140,7 +140,7 @@ func main() {
 
 	// Share Album with a Google userId
 	if shareWithUserId != "" {
-		sharedAlbumId, err = api.AlbumShareWithUserId(credentials, albumId, shareWithUserId)
+		sharedAlbumId, err = api.AlbumShareWithUserById(credentials, albumId, shareWithUserId)
 		if err != nil {
 			log.Fatalf("Can't share album: %v\n", err)
 		}

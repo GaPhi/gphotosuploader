@@ -11,6 +11,9 @@ type Album struct {
 	// Album identifier
 	AlbumId string
 
+	// Shared album identifier
+	SharedAlbumId interface{}
+
 	// Album name
 	AlbumName string
 
@@ -54,7 +57,7 @@ func CreateAlbum(credentials auth.CookieCredentials, albumName string) (string, 
 }
 
 // Share Album
-func AlbumShareWithUserId(credentials auth.CookieCredentials, albumId string, shareWithUserId string) (string, error) {
+func AlbumShareWithUserById(credentials auth.CookieCredentials, albumId string, newUserId string) (string, error) {
 	innerJson := []interface{}{
 		nil,
 		nil,
@@ -88,19 +91,22 @@ func AlbumShareWithUserId(credentials auth.CookieCredentials, albumId string, sh
 		},
 		nil,
 		[]interface{}{
-			[]interface{}{
-				[]interface{}{
-					[]interface{}{2, shareWithUserId},
+			[]interface{}{ // Users list
+				[]interface{}{ // User identified by userId
+					[]interface{}{
+						2,
+						newUserId,
+					},
 					nil,
 					nil,
 					nil,
 					nil,
 					[]interface{}{
 						2,
-						shareWithUserId,
+						newUserId,
 						[]interface{}{
 							nil,
-							shareWithUserId,
+							newUserId,
 							0,
 							nil,
 						},
@@ -139,16 +145,191 @@ func AlbumShareWithUserId(credentials auth.CookieCredentials, albumId string, sh
 	return sharedAlbumId, nil
 }
 
+// Add a new user to a Album share by its userId
+func AlbumShareAddUserById(credentials auth.CookieCredentials, sharedAlbumId string, newUserId string) error {
+	innerJson := []interface{}{
+		[]interface{}{
+			sharedAlbumId,
+		},
+		[]interface{}{
+			[]interface{}{ // Users list
+				[]interface{}{ // User identified by userId
+					[]interface{}{
+						2,
+						newUserId,
+					},
+					nil,
+					nil,
+					nil,
+					nil,
+					[]interface{}{
+						2,
+						newUserId,
+						[]interface{}{
+							nil,
+							newUserId,
+							0,
+							nil,
+						},
+					},
+				},
+			}, // End of users list
+			[]interface{}{},
+		},
+		[]interface{}{
+			[]interface{}{},
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+			[]interface{}{},
+		},
+		[]interface{}{
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+			nil,
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+		},
+		nil,
+		nil,
+		false,
+	}
+	innerJsonString, err := json.Marshal(innerJson)
+	if err != nil {
+		return err
+	}
+	jsonReq := []interface{}{
+		[]interface{}{
+			[]interface{}{
+				"NXNezb",
+				string(innerJsonString),
+				nil,
+				"generic",
+			},
+		},
+	}
+	_, err = doRequest(credentials, jsonReq)
+	// If already shared : no error
+	// If album owner : no error
+	// If user doesn't exist  : unexpected JSON response structure: [["wrb.fr","NXNezb",null,null,null,[3],"generic"],["di",132],["af.httprm",132,"8627835294917737988",8]]
+	// If user exists but ??? : unexpected JSON response structure: [["wrb.fr","NXNezb",null,null,null,[7],"generic"],["di",269],["af.httprm",267,"7342965309655408906",10]]
+	// TODO : Understand the ??? condition
+	//   - ??? is not the saturation...
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Add a new user to a Album share by its email address without dot in it
+func AlbumShareAddUserByEmail(credentials auth.CookieCredentials, sharedAlbumId string, newUserEmailWithoutDot string) error {
+	innerJson := []interface{}{
+		[]interface{}{
+			sharedAlbumId,
+		},
+		[]interface{}{
+			[]interface{}{ // Users list
+				[]interface{}{ // User identified by userEmail
+					[]interface{}{
+						6,
+						nil,
+						nil,
+						nil,
+						nil,
+						nil,
+						nil,
+						newUserEmailWithoutDot,
+					},
+					true,
+					newUserEmailWithoutDot,
+					nil,
+					nil,
+					[]interface{}{
+						5,
+						newUserEmailWithoutDot,
+						[]interface{}{
+							nil,
+							nil,
+							0,
+							nil,
+						},
+					},
+				},
+			}, // End of users list
+			[]interface{}{},
+		},
+		[]interface{}{
+			[]interface{}{},
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+			[]interface{}{},
+		},
+		[]interface{}{
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+			nil,
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+		},
+		nil,
+		nil,
+		false,
+	}
+	innerJsonString, err := json.Marshal(innerJson)
+	if err != nil {
+		return err
+	}
+	jsonReq := []interface{}{
+		[]interface{}{
+			[]interface{}{
+				"NXNezb",
+				string(innerJsonString),
+				nil,
+				"generic",
+			},
+		},
+	}
+	_, err = doRequest(credentials, jsonReq)
+	// If already shared : no error
+	// If album owner : no error
+	// If user is unknown : unexpected JSON response structure: [["wrb.fr","NXNezb",null,null,null,[3],"generic"],["di",132],["af.httprm",132,"8627835294917737988",8]]
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Delete Albums
-func DeleteAlbum(credentials auth.CookieCredentials, albumId string) error {
+// albumId: Own albumId (AF1QipP5CHoTNeAsjAdNQDbfaWTI0A2oJp_er5PSNSFs)
+// sharedAlbumId: Shared album Id (AF1QipN4Q7SPvfG2agzCI_ZTH2Hp7zNTGSOcH4MhUuCmNHxKr1JfU3Uz-vg7heZ2z195PA)
+func DeleteAlbum(credentials auth.CookieCredentials, albumId string, sharedAlbumId interface{}) error {
 	innerJson := []interface{}{
 		[]interface{}{},
 		[]interface{}{},
 		[]interface{}{
 			[]interface{}{
-				albumId, // Own albumId (AF1QipP5CHoTNeAsjAdNQDbfaWTI0A2oJp_er5PSNSFs)
-				nil,     // TODO Find Other string (shared album Id?) (AF1QipN4Q7SPvfG2agzCI_ZTH2Hp7zNTGSOcH4MhUuCmNHxKr1JfU3Uz-vg7heZ2z195PA)
-				0,       // TODO Find Integer (528 for instance)
+				albumId,
+				sharedAlbumId,
+				0, // TODO Find Integer (528 for instance)
 			},
 		},
 	}
@@ -234,7 +415,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 	albums := []Album{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		var album Album
-		album.AlbumId, err = jsonparser.GetString(value, "[0]")
+		album.SharedAlbumId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
 			return
 		}
@@ -243,6 +424,10 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 			return
 		}
 		album.MediaCount, err = jsonparser.GetInt(value, "[15]", "72930366", "[3]")
+		if err != nil {
+			return
+		}
+		album.AlbumId, err = jsonparser.GetString(value, "[15]", "72930366", "[8]")
 		if err != nil {
 			return
 		}
@@ -268,7 +453,7 @@ func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []
 		// Delete empty albums
 		for _, album := range albumsPart {
 			if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
-				err = DeleteAlbum(credentials, album.AlbumId)
+				err = DeleteAlbum(credentials, album.AlbumId, album.SharedAlbumId)
 				if err != nil {
 					notDeleted = append(notDeleted, album)
 				} else {
