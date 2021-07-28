@@ -140,11 +140,21 @@ func main() {
 
 	// Share Album with a Google userId
 	if shareWithUser != "" {
-		sharedAlbumId, err = api.AlbumShareWithUser(credentials, albumId, shareWithUser)
-		if err != nil {
-			log.Fatalf("Can't share album: %v\n", err)
+		if len(albumId) == 44 {
+			sharedAlbumId, err = api.AlbumShareWithUser(credentials, albumId, shareWithUser)
+			if err != nil {
+				log.Fatalf("Can't share album: %v\n", err)
+			}
+			log.Printf("Sharing album '%v' with user '%v' as '%v'\n", albumId, shareWithUser, sharedAlbumId)
+		} else if len(albumId) == 70 {
+			err = api.AlbumShareAddUser(credentials, albumId, shareWithUser)
+			if err != nil {
+				log.Fatalf("Can't add user to shared album: %v\n", err)
+			}
+			log.Printf("User '%v' to shared album '%v' with user '%v' as '%v'\n", shareWithUser, albumId)
+		} else {
+			log.Fatalf("Album Id length unrecognized: %v\n", albumId)
 		}
-		log.Printf("Sharing album '%v' with user '%v' as '%v'\n", albumId, shareWithUser, sharedAlbumId)
 	}
 
 	uploader, err = utils.NewUploader(credentials, albumId, maxConcurrentUploads)
