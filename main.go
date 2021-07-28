@@ -30,7 +30,7 @@ var (
 	directoriesToWatch   utils.DirectoriesToWatch
 	albumId              string
 	albumName            string
-	shareWithUserId      string
+	shareWithUser        string
 	sharedAlbumId        string
 	uploadedListFile     string
 	watchRecursively     bool
@@ -139,12 +139,12 @@ func main() {
 	}
 
 	// Share Album with a Google userId
-	if shareWithUserId != "" {
-		sharedAlbumId, err = api.AlbumShareWithUserById(credentials, albumId, shareWithUserId)
+	if shareWithUser != "" {
+		sharedAlbumId, err = api.AlbumShareWithUser(credentials, albumId, shareWithUser)
 		if err != nil {
 			log.Fatalf("Can't share album: %v\n", err)
 		}
-		log.Printf("Sharing album '%v' with userId '%v' as '%v'\n", albumId, shareWithUserId, sharedAlbumId)
+		log.Printf("Sharing album '%v' with user '%v' as '%v'\n", albumId, shareWithUser, sharedAlbumId)
 	}
 
 	uploader, err = utils.NewUploader(credentials, albumId, maxConcurrentUploads)
@@ -206,7 +206,7 @@ func parseCliArguments() {
 	flag.Var(&filesToUpload, "upload", "File or directory to upload")
 	flag.StringVar(&albumId, "album", "", "Use this parameter to move new images to a specific album")
 	flag.StringVar(&albumName, "albumName", "", "Use this parameter to move new images to a new album")
-	flag.StringVar(&shareWithUserId, "shareWithUserId", "", "Use this parameter to share a specific album with a Google userId")
+	flag.StringVar(&shareWithUser, "shareWithUser", "", "Use this parameter to share a specific album with a Google userId or userEmail")
 	flag.StringVar(&uploadedListFile, "uploadedList", "uploaded.txt", "List to already uploaded files")
 	flag.IntVar(&maxConcurrentUploads, "maxConcurrent", 1, "Number of max concurrent uploads")
 	flag.Var(&directoriesToWatch, "watch", "Directory to watch")

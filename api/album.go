@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"strings"
 )
 
 // Album represents an album
@@ -56,8 +57,62 @@ func CreateAlbum(credentials auth.CookieCredentials, albumName string) (string, 
 	return albumId, nil
 }
 
+func createUserInterface(user string) interface{} {
+	// User email (without dot before @)?
+	if strings.Contains(user, "@") {
+		return []interface{}{ // User identified by userEmail
+			[]interface{}{
+				6,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				user,
+			},
+			true,
+			user,
+			nil,
+			nil,
+			[]interface{}{
+				5,
+				user,
+				[]interface{}{
+					nil,
+					nil,
+					0,
+					nil,
+				},
+			},
+		}
+	}
+
+	// Consider it is a userId
+	return []interface{}{ // User identified by userId
+		[]interface{}{
+			2,
+			user,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		[]interface{}{
+			2,
+			user,
+			[]interface{}{
+				nil,
+				user,
+				0,
+				nil,
+			},
+		},
+	}
+}
+
 // Share Album
-func AlbumShareWithUserById(credentials auth.CookieCredentials, albumId string, newUserId string) (string, error) {
+func AlbumShareWithUser(credentials auth.CookieCredentials, albumId string, user string) (string, error) {
 	innerJson := []interface{}{
 		nil,
 		nil,
@@ -92,26 +147,7 @@ func AlbumShareWithUserById(credentials auth.CookieCredentials, albumId string, 
 		nil,
 		[]interface{}{
 			[]interface{}{ // Users list
-				[]interface{}{ // User identified by userId
-					[]interface{}{
-						2,
-						newUserId,
-					},
-					nil,
-					nil,
-					nil,
-					nil,
-					[]interface{}{
-						2,
-						newUserId,
-						[]interface{}{
-							nil,
-							newUserId,
-							0,
-							nil,
-						},
-					},
-				},
+				createUserInterface(user),
 			},
 		},
 		nil,
@@ -145,125 +181,15 @@ func AlbumShareWithUserById(credentials auth.CookieCredentials, albumId string, 
 	return sharedAlbumId, nil
 }
 
-// Add a new user to a Album share by its userId
-func AlbumShareAddUserById(credentials auth.CookieCredentials, sharedAlbumId string, newUserId string) error {
+// Add a new user to a Album share
+func AlbumShareAddUser(credentials auth.CookieCredentials, sharedAlbumId string, user string) error {
 	innerJson := []interface{}{
 		[]interface{}{
 			sharedAlbumId,
 		},
 		[]interface{}{
 			[]interface{}{ // Users list
-				[]interface{}{ // User identified by userId
-					[]interface{}{
-						2,
-						newUserId,
-					},
-					nil,
-					nil,
-					nil,
-					nil,
-					[]interface{}{
-						2,
-						newUserId,
-						[]interface{}{
-							nil,
-							newUserId,
-							0,
-							nil,
-						},
-					},
-				},
-			}, // End of users list
-			[]interface{}{},
-		},
-		[]interface{}{
-			[]interface{}{},
-			nil,
-			nil,
-			nil,
-			[]interface{}{},
-			[]interface{}{},
-		},
-		[]interface{}{
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			[]interface{}{},
-			nil,
-			nil,
-			nil,
-			nil,
-			[]interface{}{},
-		},
-		nil,
-		nil,
-		false,
-	}
-	innerJsonString, err := json.Marshal(innerJson)
-	if err != nil {
-		return err
-	}
-	jsonReq := []interface{}{
-		[]interface{}{
-			[]interface{}{
-				"NXNezb",
-				string(innerJsonString),
-				nil,
-				"generic",
-			},
-		},
-	}
-	_, err = doRequest(credentials, jsonReq)
-	// If already shared : no error
-	// If album owner : no error
-	// If user doesn't exist  : unexpected JSON response structure: [["wrb.fr","NXNezb",null,null,null,[3],"generic"],["di",132],["af.httprm",132,"8627835294917737988",8]]
-	// If user exists but ??? : unexpected JSON response structure: [["wrb.fr","NXNezb",null,null,null,[7],"generic"],["di",269],["af.httprm",267,"7342965309655408906",10]]
-	// TODO : Understand the ??? condition
-	//   - ??? is not the saturation...
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Add a new user to a Album share by its email address without dot in it
-func AlbumShareAddUserByEmail(credentials auth.CookieCredentials, sharedAlbumId string, newUserEmailWithoutDot string) error {
-	innerJson := []interface{}{
-		[]interface{}{
-			sharedAlbumId,
-		},
-		[]interface{}{
-			[]interface{}{ // Users list
-				[]interface{}{ // User identified by userEmail
-					[]interface{}{
-						6,
-						nil,
-						nil,
-						nil,
-						nil,
-						nil,
-						nil,
-						newUserEmailWithoutDot,
-					},
-					true,
-					newUserEmailWithoutDot,
-					nil,
-					nil,
-					[]interface{}{
-						5,
-						newUserEmailWithoutDot,
-						[]interface{}{
-							nil,
-							nil,
-							0,
-							nil,
-						},
-					},
-				},
+				createUserInterface(user),
 			}, // End of users list
 			[]interface{}{},
 		},
