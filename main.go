@@ -151,7 +151,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("Can't add user to shared album: %v\n", err)
 			}
-			log.Printf("User '%v' to shared album '%v' with user '%v' as '%v'\n", shareWithUser, albumId)
+			log.Printf("User '%v' added to shared album '%v'\n", shareWithUser, albumId)
 		} else {
 			log.Fatalf("Album Id length unrecognized: %v\n", albumId)
 		}
