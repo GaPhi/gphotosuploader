@@ -226,7 +226,7 @@ func parseCliArguments() {
 	flag.Var(&filesToUpload, "upload", "File or directory to upload")
 	flag.StringVar(&albumId, "album", "", "Use this parameter to move new images to a specific album")
 	flag.StringVar(&albumName, "albumName", "", "Use this parameter to move new images to a new album")
-	flag.IntVar(&albumSortKind, "albumSortKind", 0, "Use this parameter to set sort kind of the album (1: Newest first, 2: Oldest first, 3: Last added first")
+	flag.IntVar(&albumSortKind, "albumSortKind", 0, "Use this parameter to set sort kind of the album (1: Newest first, 2: Oldest first, 3: Last added first)")
 	flag.StringVar(&shareWithUser, "shareWithUser", "", "Use this parameter to share a specific album with a Google userId or userEmail")
 	flag.StringVar(&uploadedListFile, "uploadedList", "uploaded.txt", "List to already uploaded files")
 	flag.IntVar(&maxConcurrentUploads, "maxConcurrent", 1, "Number of max concurrent uploads")
