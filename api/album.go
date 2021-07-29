@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/buger/jsonparser"
 	"github.com/simonedegiacomi/gphotosuploader/auth"
 	"strings"
@@ -88,6 +89,63 @@ func AlbumAddMediaItems(credentials auth.CookieCredentials, albumId string, item
 		[]interface{}{
 			[]interface{}{
 				"laUYf",
+				string(innerJsonString),
+				nil,
+				"generic",
+			},
+		},
+	}
+	_, err = doRequest(credentials, jsonReq)
+	if err != nil {
+		return err
+	}
+
+	// The image should now be part of the album
+	return nil
+}
+
+func AlbumSortMediaItems(credentials auth.CookieCredentials, albumId string, kind int) error {
+	var kindJson []interface{}
+	switch kind {
+	case 1: // Newest first
+		kindJson = []interface{}{
+			2,
+			true,
+		}
+		break
+	case 2: // Oldest first
+		kindJson = []interface{}{
+			2,
+			false,
+		}
+		break
+	case 3: // Last added first
+		kindJson = []interface{}{
+			3,
+			true,
+		}
+		break
+	default:
+		return errors.New("bad album sort kind")
+	}
+	innerJson := []interface{}{
+		albumId,
+		[]interface{}{},
+		4,
+		nil,
+		[]interface{}{},
+		nil,
+		nil,
+		kindJson,
+	}
+	innerJsonString, err := json.Marshal(innerJson)
+	if err != nil {
+		return err
+	}
+	jsonReq := []interface{}{
+		[]interface{}{
+			[]interface{}{
+				"QD9nKf",
 				string(innerJsonString),
 				nil,
 				"generic",
