@@ -57,6 +57,52 @@ func CreateAlbum(credentials auth.CookieCredentials, albumName string) (string, 
 	return albumId, nil
 }
 
+func AlbumAddMediaItems(credentials auth.CookieCredentials, albumId string, items []string) error {
+	innerJson := []interface{}{
+		albumId,
+		[]interface{}{
+			2,
+			nil,
+			[]interface{}{
+				[]interface{}{
+					items,
+				},
+			},
+			nil,
+			nil,
+			[]interface{}{},
+			[]interface{}{
+				1,
+			},
+			nil,
+			nil,
+			nil,
+			[]interface{}{},
+		},
+	}
+	innerJsonString, err := json.Marshal(innerJson)
+	if err != nil {
+		return err
+	}
+	jsonReq := []interface{}{
+		[]interface{}{
+			[]interface{}{
+				"laUYf",
+				string(innerJsonString),
+				nil,
+				"generic",
+			},
+		},
+	}
+	_, err = doRequest(credentials, jsonReq)
+	if err != nil {
+		return err
+	}
+
+	// The image should now be part of the album
+	return nil
+}
+
 func createUserInterface(user string) interface{} {
 	// User email (without dot before @)?
 	if strings.Contains(user, "@") {

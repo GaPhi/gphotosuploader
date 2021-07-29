@@ -204,51 +204,7 @@ func (u *Upload) moveToAlbum(albumId string) error {
 		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
 	}
 
-	innerJson := []interface{}{
-		albumId,
-		[]interface{}{
-			2,
-			nil,
-			[]interface{}{
-				[]interface{}{
-					[]interface{}{
-						u.idToMoveIntoAlbum,
-					},
-				},
-			},
-			nil,
-			nil,
-			[]interface{}{},
-			[]interface{}{
-				1,
-			},
-			nil,
-			nil,
-			nil,
-			[]interface{}{},
-		},
-	}
-	innerJsonString, err := json.Marshal(innerJson)
-	if err != nil {
-		return err
-	}
-	jsonReq := []interface{}{
-		[]interface{}{
-			[]interface{}{
-				"laUYf",
-				string(innerJsonString),
-				nil,
-				"generic",
-			},
-		},
-	}
-	_, err = doRequest(u.Credentials, jsonReq)
-	if err != nil {
-		return err
-	}
-
-	// The image should now be part of the album
-	return nil
+	return AlbumAddMediaItems(u.Credentials, albumId, []string{u.idToMoveIntoAlbum})
 }
 
 // Create Album
