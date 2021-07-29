@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 
 	"github.com/buger/jsonparser"
@@ -200,44 +199,10 @@ func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err e
 }
 
 // This method add the image to an existing album given the id
-func (u *Upload) moveToAlbum0(albumId string) error {
-	if u.idToMoveIntoAlbum == "" {
-		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
-	}
-
-	innerJson := [2]interface{}{
-		[1]string{u.idToMoveIntoAlbum},
-		albumId,
-	}
-	innerJsonString, err := json.Marshal(innerJson)
-	if err != nil {
-		return err
-	}
-	jsonReq := []interface{}{
-		[]interface{}{
-			[]interface{}{
-				"E1Cajb",
-				string(innerJsonString),
-				"generic",
-			},
-		},
-	}
-	_, err = doRequest(u.Credentials, jsonReq)
-	if err != nil {
-		return err
-	}
-
-	// The image should now be part of the album
-	return nil
-}
-
-// This method add the image to an existing album given the id
 func (u *Upload) moveToAlbum(albumId string) error {
 	if u.idToMoveIntoAlbum == "" {
 		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
 	}
-
-	log.Printf("moveToAlbum(%v, %v)\n", u.idToMoveIntoAlbum, albumId)
 
 	innerJson := []interface{}{
 		albumId,
