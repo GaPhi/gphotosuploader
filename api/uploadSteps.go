@@ -199,7 +199,7 @@ func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err e
 }
 
 // This method add the image to an existing album given the id
-func (u *Upload) moveToAlbum(albumId string) error {
+func (u *Upload) moveToAlbum0(albumId string) error {
 	if u.idToMoveIntoAlbum == "" {
 		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
 	}
@@ -217,6 +217,59 @@ func (u *Upload) moveToAlbum(albumId string) error {
 			[]interface{}{
 				"E1Cajb",
 				string(innerJsonString),
+				"generic",
+			},
+		},
+	}
+	_, err = doRequest(u.Credentials, jsonReq)
+	if err != nil {
+		return err
+	}
+
+	// The image should now be part of the album
+	return nil
+}
+
+// This method add the image to an existing album given the id
+func (u *Upload) moveToAlbum(albumId string) error {
+	if u.idToMoveIntoAlbum == "" {
+		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
+	}
+
+	innerJson := []interface{}{
+		albumId,
+		[]interface{}{
+			2,
+			nil,
+			[]interface{}{
+				[]interface{}{
+					[]interface{}{
+						u.idToMoveIntoAlbum,
+					},
+				},
+			},
+			nil,
+			nil,
+			5,
+			[]interface{}{
+				1,
+			},
+			nil,
+			nil,
+			nil,
+			10,
+		},
+	}
+	innerJsonString, err := json.Marshal(innerJson)
+	if err != nil {
+		return err
+	}
+	jsonReq := []interface{}{
+		[]interface{}{
+			[]interface{}{
+				"laUYf",
+				string(innerJsonString),
+				nil,
 				"generic",
 			},
 		},
