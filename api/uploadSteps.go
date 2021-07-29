@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/buger/jsonparser"
@@ -236,6 +237,8 @@ func (u *Upload) moveToAlbum(albumId string) error {
 		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
 	}
 
+	log.Printf("moveToAlbum(%v, %v)\n", u.idToMoveIntoAlbum, albumId)
+
 	innerJson := []interface{}{
 		albumId,
 		[]interface{}{
@@ -250,14 +253,14 @@ func (u *Upload) moveToAlbum(albumId string) error {
 			},
 			nil,
 			nil,
-			5,
+			[]interface{}{},
 			[]interface{}{
 				1,
 			},
 			nil,
 			nil,
 			nil,
-			10,
+			[]interface{}{},
 		},
 	}
 	innerJsonString, err := json.Marshal(innerJson)
