@@ -43,7 +43,9 @@ func NewCookieCredentialsFromFile(fileName string) (*CookieCredentials, error) {
 	if err != nil {
 		return nil, fmt.Errorf("auth: Can't open %v", fileName)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	return NewCookieCredentialsFromJson(file)
 }
@@ -84,7 +86,9 @@ func (c *CookieCredentials) SerializeToFile(fileName string) error {
 	if err != nil {
 		return fmt.Errorf("auth: Can't create the file %v (%v)", fileName, err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	return c.Serialize(file)
 }
@@ -113,4 +117,3 @@ func prepareCookiesForSerialization(cookies []*http.Cookie) {
 		cookie.Path = "/"
 	}
 }
-

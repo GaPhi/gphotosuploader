@@ -32,7 +32,7 @@ type ExternalFieldObject struct {
 // Used to define parameters of the upload. This object should be contained in a InternalField
 type InlinedFieldObject struct {
 	Name        string `json:"name"`
-	Content     string `json:"contentType"`
+	Content     string `json:"content"`
 	ContentType string `json:"contentType"`
 }
 

@@ -18,7 +18,9 @@ func IsImageOrVideo(fileName string) (bool, error) {
 
 	// If extension check fails, try with mime
 	if file, err := os.Open(fileName); err == nil {
-		defer file.Close()
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
 		return IsFileImageOrVideo(file)
 	} else {
 		return false, err
@@ -29,14 +31,14 @@ func IsImageOrVideo(fileName string) (bool, error) {
 // Before and after the reading of the file offset is reset
 func IsFileImageOrVideo(file *os.File) (bool, error) {
 	// Read first 512 bytes
-	file.Seek(0, 0)
+	_, _ = file.Seek(0, 0)
 	buffer := make([]byte, sniffLen)
 	if _, err := file.Read(buffer); err != nil {
 		return false, err
 	}
 
 	// Reset the file
-	file.Seek(0, 0)
+	_, _ = file.Seek(0, 0)
 
 	// Detect content type
 	mime := http.DetectContentType(buffer)

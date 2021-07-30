@@ -280,7 +280,7 @@ func initAuthentication() auth.CookieCredentials {
 		fmt.Println("(If you don't know what it is, refer to the README)")
 
 		var answer string
-		fmt.Scanln(&answer)
+		_, _ = fmt.Scanln(&answer)
 		startWizard := len(answer) > 0 && strings.ToLower(answer)[0] == 'y'
 
 		if !startWizard {
@@ -314,9 +314,9 @@ func initAuthentication() auth.CookieCredentials {
 // Upload all the file and directories passed as arguments, calling filepath.Walk on each name
 func uploadArgumentsFiles() {
 	for _, name := range filesToUpload {
-		filepath.Walk(name, func(path string, file os.FileInfo, err error) error {
+		_ = filepath.Walk(name, func(path string, file os.FileInfo, err error) error {
 			if !file.IsDir() {
-				uploader.EnqueueUpload(path)
+				_ = uploader.EnqueueUpload(path)
 			}
 
 			return nil
@@ -335,7 +335,7 @@ func handleUploaderEvents(exiting chan bool) {
 			if file, err := os.OpenFile(uploadedListFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666); err != nil {
 				log.Println("Can't update the uploaded file list")
 			} else {
-				file.WriteString(info + "\n")
+				_, _ = file.WriteString(info + "\n")
 				_ = file.Close()
 			}
 
@@ -386,12 +386,10 @@ func handleFileChange(event fsnotify.Event, fsWatcher *fsnotify.Watcher) {
 			if info, err := os.Stat(event.Name); err != nil {
 				log.Println(err)
 			} else if !info.IsDir() {
-
 				// Upload file
-				uploader.EnqueueUpload(event.Name)
+				_ = uploader.EnqueueUpload(event.Name)
 			} else if watchRecursively {
-
-				startToWatch(event.Name, fsWatcher)
+				_ = startToWatch(event.Name, fsWatcher)
 			}
 		})
 		timers[event.Name] = timer

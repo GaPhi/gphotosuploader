@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	RegexUploadedImageURL = regexp.MustCompile("^https:\\/\\/lh3\\.googleusercontent\\.com\\/([\\w-]+)$")
+	RegexUploadedImageURL = regexp.MustCompile("^https://lh3\\.googleusercontent\\.com/([\\w-]+)$")
 )
 
 // UploadOptions contains the Upload options
@@ -145,7 +145,10 @@ func (u *Upload) Upload() (*UploadResult, error) {
 
 	// Add the image to an album if needed
 	if u.Options.AlbumId != "" {
-		u.moveToAlbum(u.Options.AlbumId)
+		err := u.moveToAlbum(u.Options.AlbumId)
+		if err != nil {
+			log.Printf("[WARNING] the file has not been placed in the album: %v\n", err)
+		}
 	}
 
 	// No errors, image uploaded!

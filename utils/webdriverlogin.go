@@ -22,7 +22,9 @@ func StartWebDriverCookieCredentialsWizard() (*auth.CookieCredentials, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't initialize selenium library (%v)", err)
 	}
-	defer webDriver.Close()
+	defer func(webDriver selenium.WebDriver) {
+		_ = webDriver.Close()
+	}(webDriver)
 
 	if err := instructUserAndWaitForLogin(webDriver); err != nil {
 		return nil, err
@@ -45,10 +47,10 @@ func askBrowserAndDriverAddress() (string, string) {
 	var driverAddress string
 
 	fmt.Print("Please insert the name of the browser to use: ")
-	fmt.Scanln(&browserName)
+	_, _ = fmt.Scanln(&browserName)
 
 	fmt.Println("Insert the address of the WebDriver (example: http://localhost:9515): ")
-	fmt.Scanln(&driverAddress)
+	_, _ = fmt.Scanln(&driverAddress)
 
 	return browserName, driverAddress
 }
@@ -60,7 +62,7 @@ func instructUserAndWaitForLogin(webDriver selenium.WebDriver) error {
 	}
 
 	// Wait for the user to reach Google Photos Homepage
-	fmt.Println("\nA browser window should now apper with the Google Photos Login page.")
+	fmt.Println("\nA browser window should now appear with the Google Photos Login page.")
 	fmt.Println("Once you will be redirected to the Google Photos Homepage the browser will close automatically.")
 	fmt.Println("Please fill the form and login now")
 	loginCompleted := false

@@ -128,7 +128,9 @@ func (u *ConcurrentUploader) uploadFile(filePath string, started chan bool) {
 		u.sendError(filePath, err)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	// Create options
 	options, err := api.NewUploadOptionsFromFile(file)
