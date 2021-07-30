@@ -265,6 +265,12 @@ func initAuthentication() auth.CookieCredentials {
 			credentials = nil
 		} else {
 			log.Println("Auth file seems to be valid")
+
+			// Try to update auth file
+			err = credentials.SerializeToFile(authFile)
+			if err != nil {
+				log.Printf("Can't update auth file %v: %v\n", authFile, err)
+			}
 		}
 	}
 
@@ -284,8 +290,11 @@ func initAuthentication() auth.CookieCredentials {
 			if err != nil {
 				log.Fatalf("Can't complete the login wizard, got: %v\n", err)
 			} else {
-				// TODO: Handle error
-				credentials.SerializeToFile(authFile)
+				// Write auth file
+				err = credentials.SerializeToFile(authFile)
+				if err != nil {
+					log.Fatalf("Can't write auth file %v: %v\n", authFile, err)
+				}
 			}
 		}
 	}
