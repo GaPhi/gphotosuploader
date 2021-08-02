@@ -96,7 +96,6 @@ func main() {
 				log.Printf("%v media items deleted\n", len(ids))
 			}
 		}
-		return
 	}
 
 	// Empty trash
