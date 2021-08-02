@@ -136,12 +136,12 @@ func ListMediaItems(credentials auth.CookieCredentials, before interface{}, page
 // kind=2 for Immediate deletion
 // kind=3 for Restore from trash
 func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string, kind int) error {
-	// 50 max at once (TODO Check actual limit value)
+	// 250 max at once
 	for len(mediaItemIds) > 0 {
 		var ids []string
-		if len(mediaItemIds) > 50 {
-			ids = mediaItemIds[0:50]
-			mediaItemIds = mediaItemIds[50:]
+		if len(mediaItemIds) > 250 {
+			ids = mediaItemIds[0:250]
+			mediaItemIds = mediaItemIds[250:]
 		} else {
 			ids = mediaItemIds
 			mediaItemIds = []string{}
