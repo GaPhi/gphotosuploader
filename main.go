@@ -24,7 +24,9 @@ const noDeleteBefore = -1 << 63
 var (
 	// CLI arguments
 	authFile             string
+	deleteUnsupported    bool
 	deleteBefore         int64
+	emptyTrash           bool
 	deleteEmptyAlbums    bool
 	filesToUpload        utils.FilesToUpload
 	directoriesToWatch   utils.DirectoriesToWatch
@@ -69,8 +71,37 @@ func main() {
 		log.Printf("Got timeline: %v\n", len(timeline))
 	}
 
+	// Delete unsupported media items
+	if deleteUnsupported {
+		log.Printf("Deleting unsupported media items...\n")
+		unsupported, err := api.ListAllUnsupportedMediaItemsBefore(credentials, nil)
+		if err != nil {
+			log.Fatalf("Can't get unsupported media items: %v\n", err)
+		}
+		log.Printf("Got unsupported media items: %v\n", len(unsupported))
+
+		// No item?
+		if len(unsupported) > 0 {
+			// Get ids as an array
+			ids := make([]string, len(unsupported))
+			for i, mediaItem := range unsupported {
+				ids[i] = mediaItem.MediaItemId
+			}
+
+			// Immediately delete (kind=2) too old media items
+			err = api.DeleteMediaItems(credentials, ids, 2)
+			if err != nil {
+				log.Printf("Media items deletion FAILED: %v\n", err)
+			} else {
+				log.Printf("%v media items deleted\n", len(ids))
+			}
+		}
+		return
+	}
+
 	// Empty trash
-	if false {
+	if emptyTrash {
+		log.Printf("Empty trash...\n")
 		err = api.EmptyTrash(credentials)
 		if err != nil {
 			log.Fatalf("Can't empty trash: %v\n", err)
@@ -221,7 +252,9 @@ func main() {
 // Parse CLI arguments
 func parseCliArguments() {
 	flag.StringVar(&authFile, "auth", "auth.json", "Authentication json file")
+	flag.BoolVar(&deleteUnsupported, "deleteUnsupported", false, "Delete unsupported media items")
 	flag.Int64Var(&deleteBefore, "deleteBefore", noDeleteBefore, "Use this parameter to delete existing media items created before this date (Unix timestamp in ms)")
+	flag.BoolVar(&emptyTrash, "emptyTrash", false, "Empty trash")
 	flag.BoolVar(&deleteEmptyAlbums, "deleteEmptyAlbums", false, "Delete empty albums")
 	flag.Var(&filesToUpload, "upload", "File or directory to upload")
 	flag.StringVar(&albumId, "album", "", "Use this parameter to move new images to a specific album")

@@ -404,7 +404,7 @@ func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) 
 			cb(albums, err)
 		}
 		allAlbums = append(allAlbums, albums...)
-		if nextPageToken == nil {
+		if nextPageToken == nil || nextPageToken == "" {
 			// Return result
 			return allAlbums, nil
 		}

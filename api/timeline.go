@@ -34,7 +34,7 @@ func GetWholeTimeline(credentials auth.CookieCredentials) ([]TimelineEntry, erro
 			return allEntries, err
 		}
 		allEntries = append(allEntries, entries...)
-		if nextPageToken == nil {
+		if nextPageToken == nil || nextPageToken == "" {
 			// Return result
 			return allEntries, nil
 		}
