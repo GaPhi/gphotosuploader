@@ -12,8 +12,17 @@ chrome.tabs.query({
   var tab = tabs[0];
 
   chrome.cookies.getAll({}, function (cookies) {
-
-    var cookieNames = ["OTZ", "CONSENT", "SID", "APISID", "SAPISID", "HSID", "NID", "SSID"];
+    var cookieNames = [
+      "APISID",
+      "HSID",
+      "NID",
+      "OSID",
+      "OTZ",
+      "SAPISID",
+      "SID",
+      "SIDCC",
+      "SSID"
+    ];
     var cookieDomains = [".google.com", "photos.google.com"];
 
     auth["cookies"].length = 0;
