@@ -449,15 +449,15 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 		if err != nil {
 			return
 		}
-		album.AlbumName, err = jsonparser.GetString(value, "[15]", "72930366", "[1]")
+		album.AlbumName, err = jsonparser.GetString(value, "[8]", "72930366", "[1]")
 		if err != nil {
 			return
 		}
-		album.MediaCount, err = jsonparser.GetInt(value, "[15]", "72930366", "[3]")
+		album.MediaCount, err = jsonparser.GetInt(value, "[8]", "72930366", "[3]")
 		if err != nil {
 			return
 		}
-		album.AlbumId, err = jsonparser.GetString(value, "[15]", "72930366", "[8]")
+		album.AlbumId, err = jsonparser.GetString(value, "[8]", "72930366", "[8]")
 		if err != nil {
 			return
 		}
