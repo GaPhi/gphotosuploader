@@ -69,8 +69,9 @@ func findScript(page *http.Response) (string, error) {
 
 		case tt == html.StartTagToken && t.Token().Data == "script": // We need the first script tag with attribute data-id="_gd"
 			scriptTag := t.Token()
+			log.Printf("Tag: %v\n", scriptTag.Data)
 			for i := 0; i < len(scriptTag.Attr); i++ {
-				log.Printf("%v=%v\n", scriptTag.Attr[i].Key, scriptTag.Attr[i].Val)
+				log.Printf("%v: %v=%v\n", i, scriptTag.Attr[i].Key, scriptTag.Attr[i].Val)
 				if scriptTag.Attr[i].Key == "data-id" && scriptTag.Attr[i].Val == "_gd" {
 					t.Next()
 
