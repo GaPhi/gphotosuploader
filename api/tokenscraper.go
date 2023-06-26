@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -59,7 +58,6 @@ func (ts *AtTokenScraper) getHomePage() (*http.Response, error) {
 }
 
 func findScript(page *http.Response) (string, error) {
-	log.Printf("findScript\n")
 	t := html.NewTokenizer(page.Body)
 	for {
 		tt := t.Next()
@@ -68,16 +66,18 @@ func findScript(page *http.Response) (string, error) {
 		case tt == html.ErrorToken: // End of html document
 			return "", errors.New("can't find the script tag with the token in the response")
 
-		case tt == html.StartTagToken && t.Token().Data == "script": // We need the first script tag with attribute data-id="_gd"
-			scriptTag := t.Token()
-			log.Printf("Tag: %v\n", scriptTag.Data)
-			for i := 0; i < len(scriptTag.Attr); i++ {
-				log.Printf("%v: %v=%v\n", i, scriptTag.Attr[i].Key, scriptTag.Attr[i].Val)
-				if scriptTag.Attr[i].Key == "data-id" && scriptTag.Attr[i].Val == "_gd" {
-					t.Next()
+		case tt == html.StartTagToken:
+			tok := t.Token()
+			
+			// We need the first script tag with attribute data-id="_gd"
+			if tok.Data == "script" {
+				for i := 0; i < len(tok.Attr); i++ {
+					if tok.Attr[i].Key == "data-id" && tok.Attr[i].Val == "_gd" {
+						t.Next()
 
-					// Get the script string
-					return t.Token().Data, nil
+						// Get the script string
+						return t.Token().Data, nil
+					}
 				}
 			}
 		}
