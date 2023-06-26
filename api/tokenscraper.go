@@ -59,6 +59,7 @@ func (ts *AtTokenScraper) getHomePage() (*http.Response, error) {
 }
 
 func findScript(page *http.Response) (string, error) {
+	log.Printf("findScript\n")
 	t := html.NewTokenizer(page.Body)
 	for {
 		tt := t.Next()
