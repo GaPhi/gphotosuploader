@@ -1,5 +1,5 @@
 # G Photos Uploader - Beta
-[![Build Status](https://travis-ci.org/simonedegiacomi/gphotosuploader.svg?branch=master)](https://travis-ci.org/simonedegiacomi/gphotosuploader)
+[![Build Status](https://travis-ci.org/GaPhi/gphotosuploader.svg?branch=master)](https://travis-ci.org/GaPhi/gphotosuploader)
 
 <blockquote background-color="red">
   <p>
@@ -29,7 +29,7 @@ To use the tool you need to install [Go](https://golang.org/) and Git (used by `
 ## Install
 
 ```sh
-go get github.com/simonedegiacomi/gphotosuploader
+go get github.com/GaPhi/gphotosuploader
 ```
 
 ## How can I use it?
@@ -83,7 +83,7 @@ Then you can login with your account just like you always do. When you're logged
 You can now stop the web driver server.
 
 ##### Authentication using a Chrome extension
-You can also get the authentication file using a Chrome extension. You can read more about it [here](https://github.com/simonedegiacomi/gphotosuploader/tree/master/crx-auth).
+You can also get the authentication file using a Chrome extension. You can read more about it [here](https://github.com/GaPhi/gphotosuploader/tree/master/crx-auth).
 
 
 #### Upload a photo or watch a directory
@@ -119,7 +119,7 @@ re-uploaded. You can specify your own file using the uploadedList argument.
 To see all the available arguments, use --help.
 
 ### Library
-You can read a simple example [here](documentation/examples/simple.go) or get the documentation [here](http://godoc.org/github.com/simonedegiacomi/gphotosuploader).
+You can read a simple example [here](documentation/examples/simple.go) or get the documentation [here](http://godoc.org/github.com/GaPhi/gphotosuploader).
 
 ## Development
 if you want to continue the development of this tool/library, execute first the following script:

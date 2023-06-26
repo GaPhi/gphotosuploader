@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"github.com/GaPhi/gphotosuploader/auth"
 	"golang.org/x/net/html"
 )
 
@@ -66,11 +66,20 @@ func findScript(page *http.Response) (string, error) {
 		case tt == html.ErrorToken: // End of html document
 			return "", errors.New("can't find the script tag with the token in the response")
 
-		case tt == html.StartTagToken && t.Token().Data == "script": // We need the first script tag
-			t.Next()
+		case tt == html.StartTagToken:
+			tok := t.Token()
+			
+			// We need the first script tag with attribute data-id="_gd"
+			if tok.Data == "script" {
+				for i := 0; i < len(tok.Attr); i++ {
+					if tok.Attr[i].Key == "data-id" && tok.Attr[i].Val == "_gd" {
+						t.Next()
 
-			// Get the script string
-			return t.Token().Data, nil
+						// Get the script string
+						return t.Token().Data, nil
+					}
+				}
+			}
 		}
 	}
 }

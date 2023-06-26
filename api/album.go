@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/buger/jsonparser"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"github.com/GaPhi/gphotosuploader/auth"
 	"strings"
 )
 

@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/GaPhi/gphotosuploader/api"
+	"github.com/GaPhi/gphotosuploader/auth"
 	"github.com/GaPhi/gphotosuploader/utils"
+	"github.com/GaPhi/gphotosuploader/version"
 	"github.com/fsnotify/fsnotify"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
-	"github.com/simonedegiacomi/gphotosuploader/version"
 )
 
 const noDeleteBefore = -1 << 63

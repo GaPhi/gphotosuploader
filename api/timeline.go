@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"github.com/GaPhi/gphotosuploader/auth"
 )
 
 // TimelineEntry represents an entry of the timeline
