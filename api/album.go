@@ -482,7 +482,7 @@ func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []
 
 		// Delete empty albums
 		for _, album := range albumsPart {
-			if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
+			if album.MediaCount == nil || album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
 				err = DeleteAlbum(credentials, album.AlbumId, album.SharedAlbumId)
 				if err != nil {
 					notDeleted = append(notDeleted, album)
