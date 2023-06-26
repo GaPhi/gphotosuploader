@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"github.com/GaPhi/gphotosuploader/auth"
 )
 
 // MediaItem represents a media item (picture, video)

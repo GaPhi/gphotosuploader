@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buger/jsonparser"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"github.com/GaPhi/gphotosuploader/auth"
 	"io/ioutil"
 	"net/http"
 	"net/url"

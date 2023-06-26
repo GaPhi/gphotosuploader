@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/GaPhi/gphotosuploader/api"
-	"github.com/simonedegiacomi/gphotosuploader/auth"
+	"github.com/GaPhi/gphotosuploader/auth"
 )
 
 // Simple client used to implement the tool that can upload multiple photos or videos at once
