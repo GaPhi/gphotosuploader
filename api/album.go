@@ -3,9 +3,10 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"github.com/buger/jsonparser"
-	"github.com/GaPhi/gphotosuploader/auth"
 	"strings"
+
+	"github.com/GaPhi/gphotosuploader/auth"
+	"github.com/buger/jsonparser"
 )
 
 // Album represents an album
@@ -112,19 +113,16 @@ func AlbumSortMediaItems(credentials auth.CookieCredentials, albumId string, kin
 			2,
 			true,
 		}
-		break
 	case 2: // Oldest first
 		kindJson = []interface{}{
 			2,
 			false,
 		}
-		break
 	case 3: // Last added first
 		kindJson = []interface{}{
 			3,
 			true,
 		}
-		break
 	default:
 		return errors.New("bad album sort kind")
 	}
@@ -394,9 +392,9 @@ func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) 
 		err           error
 	)
 
-	// Fetch all pages, 100 albums at once
+	// Fetch all pages
 	for {
-		albums, nextPageToken, err = ListAlbums(credentials, nextPageToken, 100)
+		albums, nextPageToken, err = ListAlbums(credentials, nextPageToken)
 		if err != nil {
 			return allAlbums, err
 		}
@@ -412,16 +410,16 @@ func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) 
 }
 
 // List albums by page
-func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageSize int) ([]Album, interface{}, error) {
+func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}) ([]Album, interface{}, error) {
+	// FIXME Only shared albums are listed
 	innerJson := []interface{}{
 		pageToken, // Page token
 		nil,
 		nil,
 		nil,
-		1,
 		nil,
 		nil,
-		pageSize, // Page size
+		[]interface{}{},
 	}
 	innerJsonString, err := json.Marshal(innerJson)
 	if err != nil {
@@ -430,7 +428,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 	jsonReq := []interface{}{
 		[]interface{}{
 			[]interface{}{
-				"Z5xsfc",
+				"F2A0H",
 				string(innerJsonString),
 				nil,
 				"generic",
@@ -444,20 +442,23 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 
 	albums := []Album{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if err != nil {
+			return
+		}
 		var album Album
-		album.SharedAlbumId, err = jsonparser.GetString(value, "[0]")
+		album.SharedAlbumId, err = jsonparser.GetString(value, "[6]")
 		if err != nil {
 			return
 		}
-		album.AlbumName, err = jsonparser.GetString(value, "[8]", "72930366", "[1]")
+		album.AlbumName, err = jsonparser.GetString(value, "[1]")
 		if err != nil {
 			return
 		}
-		album.MediaCount, err = jsonparser.GetInt(value, "[8]", "72930366", "[3]")
+		album.MediaCount, err = jsonparser.GetInt(value, "[3]")
 		if err != nil {
 			return
 		}
-		album.AlbumId, err = jsonparser.GetString(value, "[8]", "72930366", "[8]")
+		album.AlbumId, err = jsonparser.GetString(value, "[17]")
 		if err != nil {
 			return
 		}
@@ -475,6 +476,9 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []Album, error) {
 	var deleted, notDeleted []Album
 	albums, err := ListAllAlbums(credentials, func(albumsPart []Album, err error) {
+		if err != nil {
+			return
+		}
 		// No album?
 		if len(albumsPart) == 0 {
 			return

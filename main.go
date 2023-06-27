@@ -144,15 +144,11 @@ func main() {
 	if deleteEmptyAlbums {
 		log.Printf("Deleting empty albums...\n")
 		albums, deleted, notDeleted, err := api.DeleteEmptyAlbums(credentials)
-		if deleted != nil {
-			for _, album := range deleted {
-				log.Printf("Empty album %v (%v) deleted\n", album.AlbumName, album.AlbumId)
-			}
+		for _, album := range deleted {
+			log.Printf("Empty album %v (%v) deleted\n", album.AlbumName, album.AlbumId)
 		}
-		if notDeleted != nil {
-			for _, album := range notDeleted {
-				log.Printf("Empty album %v (%v) deletion FAILED\n", album.AlbumName, album.AlbumId)
-			}
+		for _, album := range notDeleted {
+			log.Printf("Empty album %v (%v) deletion FAILED\n", album.AlbumName, album.AlbumId)
 		}
 		log.Printf("Album listed: %v\n", len(albums))
 		if err != nil {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/GaPhi/gphotosuploader/auth"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -62,14 +62,14 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		}
 
 		// Read the response as a string
-		jsonRes, err = ioutil.ReadAll(res.Body)
+		jsonRes, err = io.ReadAll(res.Body)
 		_ = res.Body.Close()
 		if err != nil {
 			return nil, responseReadingError()
 		}
 
 		// Valid response?
-		if bytes.Compare(jsonRes[0:len(jsonHeader)], jsonHeader) == 0 {
+		if bytes.Equal(jsonRes[0:len(jsonHeader)], jsonHeader) {
 			// Skip first characters
 			jsonRes = jsonRes[len(jsonHeader):]
 			innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")

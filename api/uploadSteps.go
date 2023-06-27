@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/buger/jsonparser"
@@ -92,10 +91,10 @@ func (u *Upload) requestUploadURL() error {
 	}
 
 	// Create http request
-	jsonStr, err := json.Marshal(jsonReq)
+	jsonStr, _ := json.Marshal(jsonReq)
 	req, err := http.NewRequest("POST", NewUploadURL, bytes.NewBuffer(jsonStr))
 	if err != nil {
-		return errors.New(fmt.Sprintf("Can't create upload URL request: %v", err.Error()))
+		return fmt.Errorf("Can't create upload URL request: %v", err.Error())
 	}
 
 	// Add headers for the request
@@ -104,14 +103,14 @@ func (u *Upload) requestUploadURL() error {
 	// Make the request
 	res, err := u.Credentials.Client.Do(req)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error during the request to get the upload URL: %v", err.Error()))
+		return fmt.Errorf("Error during the request to get the upload URL: %v", err.Error())
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(res.Body)
 
 	// Parse the json response
-	jsonResponse, err := ioutil.ReadAll(res.Body)
+	jsonResponse, err := io.ReadAll(res.Body)
 	if err != nil {
 		return responseReadingError()
 	}
@@ -148,7 +147,7 @@ func (u *Upload) uploadFile() (token string, err error) {
 	}(res.Body)
 
 	// Parse the response
-	jsonRes, err := ioutil.ReadAll(res.Body)
+	jsonRes, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", nil
 	}
@@ -201,7 +200,7 @@ func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err e
 // This method add the image to an existing album given the id
 func (u *Upload) moveToAlbum(albumId string) error {
 	if u.idToMoveIntoAlbum == "" {
-		return errors.New(fmt.Sprint("can't move image to album without the enabled image id"))
+		return errors.New("can't move image to album without the enabled image id")
 	}
 
 	return AlbumAddMediaItems(u.Credentials, albumId, []string{u.idToMoveIntoAlbum})
@@ -210,7 +209,7 @@ func (u *Upload) moveToAlbum(albumId string) error {
 // Create Album
 func (u *Upload) createAlbum(albumName string) (string, error) {
 	if u.idToMoveIntoAlbum == "" {
-		return "", errors.New(fmt.Sprint("can't create album without the enabled image id"))
+		return "", errors.New("can't create album without the enabled image id")
 	}
 
 	innerJson := []interface{}{

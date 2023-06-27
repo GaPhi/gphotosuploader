@@ -69,6 +69,9 @@ func GetTimelineEntries(credentials auth.CookieCredentials, pageToken interface{
 
 	entries := []TimelineEntry{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if err != nil {
+			return
+		}
 		var entry TimelineEntry
 		entry.from, err = jsonparser.GetInt(value, "[0]")
 		if err != nil {
