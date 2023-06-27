@@ -98,6 +98,9 @@ func ListMediaItems(credentials auth.CookieCredentials, before interface{}, page
 
 	mediaItems := []MediaItem{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if err != nil {
+			return
+		}
 		var mediaItem MediaItem
 		mediaItem.MediaItemId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
@@ -192,6 +195,9 @@ func ListUnsupportedMediaItems(credentials auth.CookieCredentials, pageToken int
 
 	mediaItems := []MediaItem{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if err != nil {
+			return
+		}
 		var mediaItem MediaItem
 		mediaItem.MediaItemId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {

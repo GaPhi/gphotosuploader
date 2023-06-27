@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	RegexUploadedImageURL = regexp.MustCompile("^https://lh3\\.googleusercontent\\.com/([\\w-]+)$")
+	RegexUploadedImageURL = regexp.MustCompile(`^https://lh3\.googleusercontent\.com/([\w-]+)$`)
 )
 
 // UploadOptions contains the Upload options

@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"github.com/buger/jsonparser"
-	"github.com/GaPhi/gphotosuploader/auth"
+	"log"
 	"strings"
+
+	"github.com/GaPhi/gphotosuploader/auth"
+	"github.com/buger/jsonparser"
 )
 
 // Album represents an album
@@ -112,19 +114,16 @@ func AlbumSortMediaItems(credentials auth.CookieCredentials, albumId string, kin
 			2,
 			true,
 		}
-		break
 	case 2: // Oldest first
 		kindJson = []interface{}{
 			2,
 			false,
 		}
-		break
 	case 3: // Last added first
 		kindJson = []interface{}{
 			3,
 			true,
 		}
-		break
 	default:
 		return errors.New("bad album sort kind")
 	}
@@ -444,6 +443,9 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 
 	albums := []Album{}
 	_, _ = jsonparser.ArrayEach(innerJsonRes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if err != nil {
+			return
+		}
 		var album Album
 		album.SharedAlbumId, err = jsonparser.GetString(value, "[0]")
 		if err != nil {
@@ -474,7 +476,11 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 // Delete empty albums
 func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []Album, error) {
 	var deleted, notDeleted []Album
+	log.Printf("TOTO\n")
 	albums, err := ListAllAlbums(credentials, func(albumsPart []Album, err error) {
+		if err != nil {
+			return
+		}
 		// No album?
 		if len(albumsPart) == 0 {
 			return
@@ -482,7 +488,7 @@ func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []
 
 		// Delete empty albums
 		for _, album := range albumsPart {
-			if album.MediaCount == nil || album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
+			if album.MediaCount == 0 { // TODO: Only if owned (not shared album?)
 				err = DeleteAlbum(credentials, album.AlbumId, album.SharedAlbumId)
 				if err != nil {
 					notDeleted = append(notDeleted, album)
