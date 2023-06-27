@@ -393,9 +393,9 @@ func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) 
 		err           error
 	)
 
-	// Fetch all pages, 100 albums at once
+	// Fetch all pages
 	for {
-		albums, nextPageToken, err = ListAlbums(credentials, nextPageToken, 100)
+		albums, nextPageToken, err = ListAlbums(credentials, nextPageToken)
 		if err != nil {
 			return allAlbums, err
 		}
@@ -411,16 +411,16 @@ func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) 
 }
 
 // List albums by page
-func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageSize int) ([]Album, interface{}, error) {
+func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}) ([]Album, interface{}, error) {
+	// FIXME Only shared albums are listed
 	innerJson := []interface{}{
 		pageToken, // Page token
 		nil,
 		nil,
 		nil,
-		1,
 		nil,
 		nil,
-		pageSize, // Page size
+		[]interface{}{},
 	}
 	innerJsonString, err := json.Marshal(innerJson)
 	if err != nil {
@@ -429,7 +429,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 	jsonReq := []interface{}{
 		[]interface{}{
 			[]interface{}{
-				"Z5xsfc",
+				"F2A0H",
 				string(innerJsonString),
 				nil,
 				"generic",
@@ -447,19 +447,19 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 			return
 		}
 		var album Album
-		album.SharedAlbumId, err = jsonparser.GetString(value, "[0]")
+		album.SharedAlbumId, err = jsonparser.GetString(value, "[6]")
 		if err != nil {
 			return
 		}
-		album.AlbumName, err = jsonparser.GetString(value, "[8]", "72930366", "[1]")
+		album.AlbumName, err = jsonparser.GetString(value, "[1]")
 		if err != nil {
 			return
 		}
-		album.MediaCount, err = jsonparser.GetInt(value, "[8]", "72930366", "[3]")
+		album.MediaCount, err = jsonparser.GetInt(value, "[3]")
 		if err != nil {
 			return
 		}
-		album.AlbumId, err = jsonparser.GetString(value, "[8]", "72930366", "[8]")
+		album.AlbumId, err = jsonparser.GetString(value, "[17]")
 		if err != nil {
 			return
 		}
@@ -467,6 +467,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 	}, "[0]")
 
 	nextPageToken, err := jsonparser.GetString(innerJsonRes, "[1]")
+	log.Printf("%v\n",nextPageToken)
 	if err != nil {
 		return albums, nil, nil
 	}
@@ -476,7 +477,6 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}, pageS
 // Delete empty albums
 func DeleteEmptyAlbums(credentials auth.CookieCredentials) ([]Album, []Album, []Album, error) {
 	var deleted, notDeleted []Album
-	log.Printf("TOTO\n")
 	albums, err := ListAllAlbums(credentials, func(albumsPart []Album, err error) {
 		if err != nil {
 			return
