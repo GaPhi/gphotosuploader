@@ -163,6 +163,7 @@ func (u *Upload) enablePhoto(uploadTokenBase64 string) (enabledUrl string, err e
 				uploadTokenBase64,
 				u.Options.Name,
 				u.Options.Timestamp,
+				2,
 			},
 		},
 	}
