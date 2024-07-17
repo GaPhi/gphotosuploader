@@ -7,6 +7,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/GaPhi/gphotosuploader/auth"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -46,6 +47,7 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 
 	form := url.Values{}
 	form.Add("f.req", string(jsonString))
+	log.Printf("Request: %v\n", string(jsonString))
 	form.Add("at", credentials.RuntimeParameters.AtToken)
 
 	var jsonRes []byte
@@ -67,6 +69,7 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		if err != nil {
 			return nil, responseReadingError()
 		}
+		log.Printf("Response: %v\n", jsonRes)
 
 		// Valid response?
 		if bytes.Equal(jsonRes[0:len(jsonHeader)], jsonHeader) {
