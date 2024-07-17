@@ -415,10 +415,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}) ([]Al
 	innerJson := []interface{}{
 		pageToken, // Page token
 		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		2,
 		[]interface{}{},
 	}
 	innerJsonString, err := json.Marshal(innerJson)
