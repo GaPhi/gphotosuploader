@@ -258,8 +258,10 @@ func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string,
 		}
 
 		innerJson := []interface{}{
-			ids,
-			//kind,
+			nil,
+      1,
+      ids,
+			kind,
 		}
 		innerJsonString, err := json.Marshal(innerJson)
 		if err != nil {
