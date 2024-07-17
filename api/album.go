@@ -413,10 +413,9 @@ func ListAllAlbums(credentials auth.CookieCredentials, cb func([]Album, error)) 
 func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}) ([]Album, interface{}, error) {
 	// FIXME Only shared albums are listed
 	innerJson := []interface{}{
-		nil, //   pageToken, // Page token
+		pageToken, // Page token
 		nil,
 		2,
-		[]interface{}{},
 	}
 	innerJsonString, err := json.Marshal(innerJson)
 	if err != nil {
