@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/GaPhi/gphotosuploader/auth"
@@ -432,6 +433,7 @@ func ListAlbums(credentials auth.CookieCredentials, pageToken interface{}) ([]Al
 		},
 	}
 	innerJsonRes, err := doRequest(credentials, jsonReq)
+  log.Printf("ListAlbums: innerJsonRes=%v\n", innerJsonRes)
 	if err != nil {
 		return nil, nil, err
 	}
