@@ -21,6 +21,7 @@ const (
 var (
 	// JSON response header (cannot be an actual constant in Go)
 	jsonHeader = []byte{')', ']', '}', '\'', '\n', '\n'}
+  logRequests bool
 )
 
 func responseReadingError() error {
@@ -47,7 +48,9 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 
 	form := url.Values{}
 	form.Add("f.req", string(jsonString))
-	log.Printf("Request: %v\n", string(jsonString))
+	if logRequests {
+		log.Printf("Request: %v\n", string(jsonString))
+  }
 	form.Add("at", credentials.RuntimeParameters.AtToken)
 
 	var jsonRes []byte
@@ -69,7 +72,9 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		if err != nil {
 			return nil, responseReadingError()
 		}
-		log.Printf("Response: %v\n", string(jsonRes))
+		if logRequests {
+			log.Printf("Response: %v\n", string(jsonRes))
+		}
 
 		// Valid response?
 		if bytes.Equal(jsonRes[0:len(jsonHeader)], jsonHeader) {
