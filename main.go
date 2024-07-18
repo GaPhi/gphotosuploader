@@ -261,6 +261,7 @@ func parseCliArguments() {
 	flag.Var(&directoriesToWatch, "watch", "Directory to watch")
 	flag.BoolVar(&watchRecursively, "watchRecursively", true, "Start watching new directories in currently watched directories")
 	delay := flag.Int("eventDelay", 3, "Distance of time to wait to consume different events of the same file (seconds)")
+	flag.BoolVar(&api.LogRequests, "debug", false, "Log Google requests and responses")
 	flag.BoolVar(&printVersion, "version", false, "Print version and commit date")
 
 	flag.Parse()

@@ -7,6 +7,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/GaPhi/gphotosuploader/auth"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +21,7 @@ const (
 var (
 	// JSON response header (cannot be an actual constant in Go)
 	jsonHeader = []byte{')', ']', '}', '\'', '\n', '\n'}
+	LogRequests bool
 )
 
 func responseReadingError() error {
@@ -46,6 +48,9 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 
 	form := url.Values{}
 	form.Add("f.req", string(jsonString))
+	if LogRequests {
+		log.Printf("Request: %v\n", string(jsonString))
+  }
 	form.Add("at", credentials.RuntimeParameters.AtToken)
 
 	var jsonRes []byte
@@ -66,6 +71,9 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		_ = res.Body.Close()
 		if err != nil {
 			return nil, responseReadingError()
+		}
+		if LogRequests {
+			log.Printf("Response: %v\n", string(jsonRes))
 		}
 
 		// Valid response?
