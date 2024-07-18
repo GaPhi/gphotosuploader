@@ -69,7 +69,7 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		if err != nil {
 			return nil, responseReadingError()
 		}
-		log.Printf("Response: %v\n", jsonRes)
+		log.Printf("Response: %v\n", string(jsonRes))
 
 		// Valid response?
 		if bytes.Equal(jsonRes[0:len(jsonHeader)], jsonHeader) {
