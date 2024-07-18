@@ -21,7 +21,7 @@ const (
 var (
 	// JSON response header (cannot be an actual constant in Go)
 	jsonHeader = []byte{')', ']', '}', '\'', '\n', '\n'}
-  LogRequests bool
+	LogRequests bool
 )
 
 func responseReadingError() error {
