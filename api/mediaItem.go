@@ -48,9 +48,6 @@ func ListAllMediaItemsBefore(credentials auth.CookieCredentials, before interfac
 	// Fetch all pages, several media items at once
 	for {
 		mediaItems, nextPageToken, err = ListMediaItems(credentials, before, nextPageToken)
-		if err != nil {
-			return allMediaItems, err
-		}
 		if cb != nil {
 			cb(mediaItems, err)
 		}
@@ -152,9 +149,6 @@ func ListAllUnsupportedMediaItemsBefore(credentials auth.CookieCredentials, cb f
 	// Fetch all pages, several media items at once
 	for {
 		mediaItems, nextPageToken, err = ListUnsupportedMediaItems(credentials, nextPageToken)
-		if err != nil {
-			return allMediaItems, err
-		}
 		if cb != nil {
 			cb(mediaItems, err)
 		}
