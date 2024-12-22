@@ -24,6 +24,7 @@ const noDeleteBefore = -1 << 63
 var (
 	// CLI arguments
 	authFile             string
+	queryStorage         bool
 	deleteUnsupported    bool
 	deleteBefore         int64
 	emptyTrash           bool
@@ -69,6 +70,16 @@ func main() {
 			log.Fatalf("Can't get timeline: %v\n", err)
 		}
 		log.Printf("Got timeline: %v\n", len(timeline))
+	}
+
+	// Query storage
+	if queryStorage {
+		log.Printf("Querying storage...\n")
+		used, total, err := api.QueryStorage(credentials)
+		if err != nil {
+			log.Fatalf("Can't get storage data: %v\n", err)
+		}
+		log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100.0*used/total)
 	}
 
 	// Delete unsupported media items
@@ -247,6 +258,7 @@ func main() {
 // Parse CLI arguments
 func parseCliArguments() {
 	flag.StringVar(&authFile, "auth", "auth.json", "Authentication json file")
+	flag.BoolVar(&queryStorage, "queryStorage", false, "Query storage (used/left)")
 	flag.BoolVar(&deleteUnsupported, "deleteUnsupported", false, "Delete unsupported media items")
 	flag.Int64Var(&deleteBefore, "deleteBefore", noDeleteBefore, "Use this parameter to delete existing media items created before this date (Unix timestamp in ms)")
 	flag.BoolVar(&emptyTrash, "emptyTrash", false, "Empty trash")
