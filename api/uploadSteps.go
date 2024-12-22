@@ -94,7 +94,7 @@ func (u *Upload) requestUploadURL() error {
 	jsonStr, _ := json.Marshal(jsonReq)
 	req, err := http.NewRequest("POST", NewUploadURL, bytes.NewBuffer(jsonStr))
 	if err != nil {
-		return fmt.Errorf("Can't create upload URL request: %v", err.Error())
+		return fmt.Errorf("can't create upload URL request: %v", err.Error())
 	}
 
 	// Add headers for the request
@@ -103,7 +103,7 @@ func (u *Upload) requestUploadURL() error {
 	// Make the request
 	res, err := u.Credentials.Client.Do(req)
 	if err != nil {
-		return fmt.Errorf("Error during the request to get the upload URL: %v", err.Error())
+		return fmt.Errorf("error during the request to get the upload URL: %v", err.Error())
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
