@@ -72,16 +72,6 @@ func main() {
 		log.Printf("Got timeline: %v\n", len(timeline))
 	}
 
-	// Query storage
-	if queryStorage {
-		log.Printf("Querying storage...\n")
-		used, total, err := api.QueryStorage(credentials)
-		if err != nil {
-			log.Fatalf("Can't get storage data: %v\n", err)
-		}
-		log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100.0*used/total)
-	}
-
 	// Delete unsupported media items
 	if deleteUnsupported {
 		log.Printf("Deleting unsupported media items...\n")
@@ -99,24 +89,14 @@ func main() {
 				ids[i] = mediaItem.MediaItemId
 			}
 
-			// Immediately delete too old media items
-			err = api.DeleteMediaItems(credentials, ids, api.DeleteNow)
+			// Send too old media items to trash
+			err = api.DeleteMediaItems(credentials, ids, api.SendToTrash)
 			if err != nil {
 				log.Printf("Media items deletion FAILED: %v\n", err)
 			} else {
 				log.Printf("%v media items deleted\n", len(ids))
 			}
 		}
-	}
-
-	// Empty trash
-	if emptyTrash {
-		log.Printf("Empty trash...\n")
-		err = api.EmptyTrash(credentials)
-		if err != nil {
-			log.Fatalf("Can't empty trash: %v\n", err)
-		}
-		log.Printf("Trash emptied\n")
 	}
 
 	// Delete too old media items
@@ -134,8 +114,8 @@ func main() {
 				ids[i] = mediaItem.MediaItemId
 			}
 
-			// Immediately delete too old media items
-			err = api.DeleteMediaItems(credentials, ids, api.DeleteNow)
+			// Send too old media items to trash
+			err = api.DeleteMediaItems(credentials, ids, api.SendToTrash)
 			if err != nil {
 				log.Printf("Media items deletion FAILED: %v\n", err)
 			} else {
@@ -149,6 +129,16 @@ func main() {
 			log.Fatalf("Can't delete old media items: %v\n", err)
 		}
 		log.Printf("Media items deleted: %v\n", len(mediaItems))
+	}
+
+	// Empty trash
+	if emptyTrash {
+		log.Printf("Empty trash...\n")
+		err = api.EmptyTrash(credentials)
+		if err != nil {
+			log.Fatalf("Can't empty trash: %v\n", err)
+		}
+		log.Printf("Trash emptied\n")
 	}
 
 	// Delete empty albums
@@ -250,6 +240,16 @@ func main() {
 	<-stopHandler
 	stopHandler <- true
 	<-stopHandler
+
+	// Query storage
+	if queryStorage {
+		log.Printf("Querying storage...\n")
+		used, total, err := api.QueryStorage(credentials)
+		if err != nil {
+			log.Fatalf("Can't get storage data: %v\n", err)
+		}
+		log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100.0*used/total)
+	}
 
 	log.Printf("Done (%v files uploaded, %v files ignored, %v errors)", uploadedFilesCount, ignoredCount, errorsCount)
 	os.Exit(0)
