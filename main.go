@@ -99,8 +99,8 @@ func main() {
 				ids[i] = mediaItem.MediaItemId
 			}
 
-			// Immediately delete (kind=2) too old media items
-			err = api.DeleteMediaItems(credentials, ids, 2)
+			// Immediately delete too old media items
+			err = api.DeleteMediaItems(credentials, ids, api.DeleteNow)
 			if err != nil {
 				log.Printf("Media items deletion FAILED: %v\n", err)
 			} else {
@@ -134,8 +134,8 @@ func main() {
 				ids[i] = mediaItem.MediaItemId
 			}
 
-			// Immediately delete (kind=2) too old media items
-			err = api.DeleteMediaItems(credentials, ids, 2)
+			// Immediately delete too old media items
+			err = api.DeleteMediaItems(credentials, ids, api.DeleteNow)
 			if err != nil {
 				log.Printf("Media items deletion FAILED: %v\n", err)
 			} else {

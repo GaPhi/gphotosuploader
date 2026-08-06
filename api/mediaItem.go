@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/GaPhi/gphotosuploader/auth"
 )
@@ -237,39 +238,52 @@ func ListUnsupportedMediaItems(credentials auth.CookieCredentials, pageToken int
 	return mediaItems, nextPageToken, nil
 }
 
-// DeleteMediaItems a media item
-// kind=1 for Send to trash
-// kind=2 for Immediate deletion
-// kind=3 for Restore from trash
-func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string, kind int) error {
-	// 250 max at once
-	for len(mediaItemIds) > 0 {
-		var ids []string
-		if len(mediaItemIds) > 250 {
-			ids = mediaItemIds[0:250]
-			mediaItemIds = mediaItemIds[250:]
-		} else {
-			ids = mediaItemIds
-			mediaItemIds = []string{}
+// DeleteMediaItems deletes or restores media items.
+type DeleteKind int
+const (
+	SendToTrash DeleteKind = 1
+	DeleteNow   DeleteKind = 2
+	Restore     DeleteKind = 3
+)
+func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string, kind DeleteKind) error {
+	if len(mediaItemIds) == 0 {
+		return nil
+	}
+
+	var actionCode int
+	switch kind {
+	case SendToTrash:
+		actionCode = 3
+	case DeleteNow, Restore:
+		actionCode = 2
+	default:
+		return fmt.Errorf("invalid kind: %d", kind)
+	}
+
+	for i := 0; i < len(mediaItemIds); i += 250 {
+		end := i + 250
+		if end > len(mediaItemIds) {
+			end = len(mediaItemIds)
 		}
+		ids := mediaItemIds[i:end]
 
 		innerJson := []interface{}{
 			nil,
-			1,
-			ids,
 			kind,
+			ids,
+			actionCode,
 		}
+
 		innerJsonString, err := json.Marshal(innerJson)
 		if err != nil {
 			return err
 		}
+
 		jsonReq := []interface{}{
 			[]interface{}{
 				[]interface{}{
 					"XwAOJf",
 					string(innerJsonString),
-					nil,
-					nil,
 					nil,
 					"generic",
 				},
@@ -280,5 +294,6 @@ func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string,
 			return err
 		}
 	}
+
 	return nil
 }
