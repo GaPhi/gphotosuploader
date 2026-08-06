@@ -240,11 +240,13 @@ func ListUnsupportedMediaItems(credentials auth.CookieCredentials, pageToken int
 
 // DeleteMediaItems deletes or restores media items.
 type DeleteKind int
+
 const (
 	SendToTrash DeleteKind = 1
 	DeleteNow   DeleteKind = 2
 	Restore     DeleteKind = 3
 )
+
 func DeleteMediaItems(credentials auth.CookieCredentials, mediaItemIds []string, kind DeleteKind) error {
 	if len(mediaItemIds) == 0 {
 		return nil
