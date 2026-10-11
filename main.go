@@ -21,6 +21,9 @@ import (
 
 const noDeleteBefore = -1 << 63
 
+// Delay between two cookies rotations while watching directories
+const cookiesRotationInterval = 24 * time.Hour
+
 var (
 	// CLI arguments
 	authFile             string
@@ -228,6 +231,13 @@ func main() {
 			}
 		}
 
+		// Keep the session alive while watching
+		go func() {
+			for range time.Tick(cookiesRotationInterval) {
+				rotateAndSaveCookies(&credentials)
+			}
+		}()
+
 		log.Println("Watching 👀\nPress CTRL + C to stop")
 
 		// Wait for CTRL + C
@@ -307,11 +317,8 @@ func initAuthentication() auth.CookieCredentials {
 		} else {
 			log.Println("Auth file seems to be valid")
 
-			// Try to update auth file
-			err = credentials.SerializeToFile(authFile)
-			if err != nil {
-				log.Printf("Can't update auth file %v: %v\n", authFile, err)
-			}
+			// Renew the short-lived cookies and update auth file
+			rotateAndSaveCookies(credentials)
 		}
 	}
 
@@ -350,6 +357,30 @@ func initAuthentication() auth.CookieCredentials {
 	log.Println("At token taken")
 
 	return *credentials
+}
+
+// Renew the short-lived session cookies, then write the cookies sent back by Google into the auth file.
+// A failed rotation is not fatal: the current cookies are still valid at this point.
+func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
+	// Never rotate if the result can't be saved: the values kept in the auth file would be dropped by Google
+	if file, err := os.OpenFile(authFile, os.O_WRONLY, 0); err != nil {
+		log.Printf("Auth file %v is not writable, cookies not rotated: %v\n", authFile, err)
+		return
+	} else {
+		_ = file.Close()
+	}
+
+	if rotated, err := credentials.RotateCookies(); err != nil {
+		log.Printf("Can't rotate cookies: %v\n", err)
+	} else if rotated {
+		log.Println("Cookies rotated")
+	} else {
+		log.Println("Cookies not rotated (Google didn't send new ones)")
+	}
+
+	if err := credentials.SerializeToFile(authFile); err != nil {
+		log.Printf("Can't update auth file %v: %v\n", authFile, err)
+	}
 }
 
 // Upload all the file and directories passed as arguments, calling filepath.Walk on each name
