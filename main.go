@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -45,6 +47,13 @@ var (
 	eventDelay           time.Duration
 	printVersion         bool
 
+	// Serializes the writes of the auth file
+	authFileMutex sync.Mutex
+
+	// CTRL + C stops the watching instead of exiting
+	watching     atomic.Bool
+	stopWatching = make(chan struct{})
+
 	// Uploader
 	uploader *utils.ConcurrentUploader
 	timers   = make(map[string]*time.Timer)
@@ -64,13 +73,27 @@ func main() {
 
 	credentials := initAuthentication()
 
+	// Save the cookies before exiting on CTRL + C
+	interrupted := make(chan os.Signal, 2)
+	signal.Notify(interrupted, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-interrupted
+		if watching.Load() {
+			close(stopWatching)
+			return
+		}
+		saveCookies(&credentials)
+		log.Println("Interrupted")
+		os.Exit(1)
+	}()
+
 	var err error
 
 	// Get timeline
 	if false {
 		timeline, err := api.GetWholeTimeline(credentials)
 		if err != nil {
-			log.Fatalf("Can't get timeline: %v\n", err)
+			fatalf(&credentials, "Can't get timeline: %v\n", err)
 		}
 		log.Printf("Got timeline: %v\n", len(timeline))
 	}
@@ -80,7 +103,7 @@ func main() {
 		log.Printf("Deleting unsupported media items...\n")
 		unsupported, err := api.ListAllUnsupportedMediaItemsBefore(credentials, nil)
 		if err != nil {
-			log.Fatalf("Can't get unsupported media items: %v\n", err)
+			fatalf(&credentials, "Can't get unsupported media items: %v\n", err)
 		}
 		log.Printf("Got unsupported media items: %v\n", len(unsupported))
 
@@ -129,7 +152,7 @@ func main() {
 			}
 		})
 		if err != nil {
-			log.Fatalf("Can't delete old media items: %v\n", err)
+			fatalf(&credentials, "Can't delete old media items: %v\n", err)
 		}
 		log.Printf("Media items deleted: %v\n", len(mediaItems))
 	}
@@ -139,7 +162,7 @@ func main() {
 		log.Printf("Empty trash...\n")
 		err = api.EmptyTrash(credentials)
 		if err != nil {
-			log.Fatalf("Can't empty trash: %v\n", err)
+			fatalf(&credentials, "Can't empty trash: %v\n", err)
 		}
 		log.Printf("Trash emptied\n")
 	}
@@ -164,7 +187,7 @@ func main() {
 	if albumName != "" {
 		albumId, err = api.CreateAlbum(credentials, albumName)
 		if err != nil {
-			log.Fatalf("Can't create album: %v\n", err)
+			fatalf(&credentials, "Can't create album: %v\n", err)
 		}
 		log.Printf("New album with ID '%v' created\n", albumId)
 	}
@@ -173,7 +196,7 @@ func main() {
 	if albumSortKind != 0 {
 		err = api.AlbumSortMediaItems(credentials, albumId, albumSortKind)
 		if err != nil {
-			log.Fatalf("Can't set album sort kind %v: %v\n", albumSortKind, err)
+			fatalf(&credentials, "Can't set album sort kind %v: %v\n", albumSortKind, err)
 		}
 		log.Printf("Album sort kind set to %v\n", albumSortKind)
 	}
@@ -183,23 +206,23 @@ func main() {
 		if len(albumId) == 44 {
 			sharedAlbumId, err = api.AlbumShareWithUser(credentials, albumId, shareWithUser)
 			if err != nil {
-				log.Fatalf("Can't share album: %v\n", err)
+				fatalf(&credentials, "Can't share album: %v\n", err)
 			}
 			log.Printf("Sharing album '%v' with user '%v' as '%v'\n", albumId, shareWithUser, sharedAlbumId)
 		} else if len(albumId) == 70 {
 			err = api.AlbumShareAddUser(credentials, albumId, shareWithUser)
 			if err != nil {
-				log.Fatalf("Can't add user to shared album: %v\n", err)
+				fatalf(&credentials, "Can't add user to shared album: %v\n", err)
 			}
 			log.Printf("User '%v' added to shared album '%v'\n", shareWithUser, albumId)
 		} else {
-			log.Fatalf("Album Id length unrecognized: %v\n", albumId)
+			fatalf(&credentials, "Album Id length unrecognized: %v\n", albumId)
 		}
 	}
 
 	uploader, err = utils.NewUploader(credentials, albumId, maxConcurrentUploads)
 	if err != nil {
-		log.Fatalf("Can't create uploader: %v\n", err)
+		fatalf(&credentials, "Can't create uploader: %v\n", err)
 	}
 
 	stopHandler := make(chan bool)
@@ -231,19 +254,11 @@ func main() {
 			}
 		}
 
-		// Keep the session alive while watching
-		go func() {
-			for range time.Tick(cookiesRotationInterval) {
-				rotateAndSaveCookies(&credentials)
-			}
-		}()
-
 		log.Println("Watching 👀\nPress CTRL + C to stop")
 
 		// Wait for CTRL + C
-		c := make(chan os.Signal, 2)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-		<-c
+		watching.Store(true)
+		<-stopWatching
 	}
 
 	stopHandler <- true
@@ -256,10 +271,13 @@ func main() {
 		log.Printf("Querying storage...\n")
 		used, total, err := api.QueryStorage(credentials)
 		if err != nil {
-			log.Fatalf("Can't get storage data: %v\n", err)
+			fatalf(&credentials, "Can't get storage data: %v\n", err)
 		}
 		log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100.0*used/total)
 	}
+
+	// Keep the cookies updated by Google during the run
+	saveCookies(&credentials)
 
 	log.Printf("Done (%v files uploaded, %v files ignored, %v errors)", uploadedFilesCount, ignoredCount, errorsCount)
 	os.Exit(0)
@@ -351,7 +369,7 @@ func initAuthentication() auth.CookieCredentials {
 	log.Println("Getting a new At token ...")
 	token, err := api.NewAtTokenScraper(*credentials).ScrapeNewAtToken()
 	if err != nil {
-		log.Fatalf("Can't scrape a new At token (%v)\n", err)
+		fatalf(credentials, "Can't scrape a new At token (%v)\n", err)
 	}
 	credentials.RuntimeParameters.AtToken = token
 	log.Println("At token taken")
@@ -363,11 +381,9 @@ func initAuthentication() auth.CookieCredentials {
 // A failed rotation is not fatal: the current cookies are still valid at this point.
 func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
 	// Never rotate if the result can't be saved: the values kept in the auth file would be dropped by Google
-	if file, err := os.OpenFile(authFile, os.O_WRONLY, 0); err != nil {
+	if err := checkAuthFileWritable(); err != nil {
 		log.Printf("Auth file %v is not writable, cookies not rotated: %v\n", authFile, err)
 		return
-	} else {
-		_ = file.Close()
 	}
 
 	if rotated, err := credentials.RotateCookies(); err != nil {
@@ -378,9 +394,35 @@ func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
 		log.Println("Cookies not rotated (Google didn't send new ones)")
 	}
 
+	saveCookies(credentials)
+}
+
+// Write into the auth file the cookies currently held, including the ones updated by Google in any response
+func saveCookies(credentials *auth.CookieCredentials) {
+	if err := checkAuthFileWritable(); err != nil {
+		log.Printf("Auth file %v is not writable, not updated: %v\n", authFile, err)
+		return
+	}
+
+	authFileMutex.Lock()
+	defer authFileMutex.Unlock()
 	if err := credentials.SerializeToFile(authFile); err != nil {
 		log.Printf("Can't update auth file %v: %v\n", authFile, err)
 	}
+}
+
+func checkAuthFileWritable() error {
+	file, err := os.OpenFile(authFile, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	return file.Close()
+}
+
+// Save the cookies, then exit as log.Fatalf
+func fatalf(credentials *auth.CookieCredentials, format string, v ...interface{}) {
+	saveCookies(credentials)
+	log.Fatalf(format, v...)
 }
 
 // Upload all the file and directories passed as arguments, calling filepath.Walk on each name

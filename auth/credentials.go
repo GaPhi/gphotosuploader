@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path/filepath"
 )
 
 const (
@@ -80,17 +82,61 @@ func createJarWithCookies(cookies []*http.Cookie) *cookiejar.Jar {
 }
 
 // Serialize the CookieCredentials object into a JSON file, to be restored in the future using
-// NewCookieCredentialsFromJsonFile
+// NewCookieCredentialsFromJsonFile.
+// The file is replaced atomically (temporary file then rename) so that an interruption never leaves a
+// truncated file. When the rename is not possible (file mounted alone in a container, directory not
+// writable, ...), the file is overwritten in place.
 func (c *CookieCredentials) SerializeToFile(fileName string) error {
-	file, err := os.Create(fileName)
-	if err != nil {
-		return fmt.Errorf("auth: Can't create the file %v (%v)", fileName, err)
+	var content bytes.Buffer
+	if err := c.Serialize(&content); err != nil {
+		return err
 	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
 
-	return c.Serialize(file)
+	// Replace the target of a symbolic link, not the link itself
+	target := fileName
+	if resolved, err := filepath.EvalSymlinks(fileName); err == nil {
+		target = resolved
+	}
+
+	if err := replaceFile(target, content.Bytes()); err == nil {
+		return nil
+	}
+
+	if err := os.WriteFile(target, content.Bytes(), 0600); err != nil {
+		return fmt.Errorf("auth: Can't write the file %v (%v)", fileName, err)
+	}
+	return nil
+}
+
+// Write content into a temporary file next to fileName, then rename it as fileName
+func replaceFile(fileName string, content []byte) error {
+	mode := os.FileMode(0600)
+	if info, err := os.Stat(fileName); err == nil {
+		mode = info.Mode().Perm()
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(fileName), "."+filepath.Base(fileName)+".*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = os.Remove(tmp.Name())
+	}()
+
+	_, err = tmp.Write(content)
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Chmod(tmp.Name(), mode)
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), fileName)
+	}
+	return err
 }
 
 // Serialize the CookieCredentials object into a JSON object, to be restored in the future using
