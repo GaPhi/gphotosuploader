@@ -73,6 +73,13 @@ func main() {
 
 	credentials := initAuthentication()
 
+	// Keep the session alive during the whole run
+	go func() {
+		for range time.Tick(cookiesRotationInterval) {
+			rotateAndSaveCookies(&credentials)
+		}
+	}()
+
 	// Save the cookies before exiting on CTRL + C
 	interrupted := make(chan os.Signal, 2)
 	signal.Notify(interrupted, os.Interrupt, syscall.SIGTERM)
