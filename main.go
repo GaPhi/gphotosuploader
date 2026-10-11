@@ -436,6 +436,16 @@ func fatalf(credentials *auth.CookieCredentials, format string, v ...interface{}
 func uploadArgumentsFiles() {
 	for _, name := range filesToUpload {
 		_ = filepath.Walk(name, func(path string, file os.FileInfo, err error) error {
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
+			if utils.IsIgnoredPath(path) {
+				if file.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			if !file.IsDir() {
 				_ = uploader.EnqueueUpload(path)
 			}
@@ -478,7 +488,14 @@ func handleUploaderEvents(exiting chan bool) {
 func startToWatch(filePath string, fsWatcher *fsnotify.Watcher) error {
 	if watchRecursively {
 		return filepath.Walk(filePath, func(path string, file os.FileInfo, err error) error {
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
 			if file.IsDir() {
+				if utils.IsIgnoredPath(path) {
+					return filepath.SkipDir
+				}
 				return fsWatcher.Add(path)
 			}
 			return nil
@@ -501,6 +518,9 @@ func handleFileChange(event fsnotify.Event, fsWatcher *fsnotify.Watcher) {
 			timer.Reset(eventDelay)
 		}
 	} else if event.Op != fsnotify.Remove && event.Op != fsnotify.Rename {
+		if utils.IsIgnoredPath(event.Name) {
+			return
+		}
 		timer = time.AfterFunc(eventDelay, func() {
 			log.Printf("Finally consuming events for the %v file", event.Name)
 
