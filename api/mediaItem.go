@@ -3,8 +3,8 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/buger/jsonparser"
 	"github.com/GaPhi/gphotosuploader/auth"
+	"github.com/buger/jsonparser"
 )
 
 // MediaItem represents a media item (picture, video)

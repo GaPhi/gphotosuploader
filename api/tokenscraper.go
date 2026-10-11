@@ -68,7 +68,7 @@ func findScript(page *http.Response) (string, error) {
 
 		case tt == html.StartTagToken:
 			tok := t.Token()
-			
+
 			// We need the first script tag with attribute data-id="_gd"
 			if tok.Data == "script" {
 				for _, attr := range tok.Attr {
