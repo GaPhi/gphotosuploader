@@ -21,6 +21,9 @@ type ConcurrentUploader struct {
 	// Buffered channel to limit concurrent uploads
 	concurrentLimiter chan bool
 
+	// Protects uploadedFiles, waiting and stopUploads, used by concurrent uploads and file system events
+	mutex sync.Mutex
+
 	// Map of uploaded files (used as a set)
 	uploadedFiles map[string]bool
 
@@ -63,6 +66,8 @@ func NewUploader(credentials auth.CookieCredentials, albumId string, maxConcurre
 
 // Add files to the list of already uploaded files
 func (u *ConcurrentUploader) AddUploadedFiles(files ...string) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 	for _, name := range files {
 		u.uploadedFiles[name] = true
 	}
@@ -73,10 +78,6 @@ func (u *ConcurrentUploader) AddUploadedFiles(files ...string) {
 // Due to the fact that this method is asynchronous, if nil is return it doesn't mean the the upload was completed:
 // for that use the Errors and CompletedUploads channels
 func (u *ConcurrentUploader) EnqueueUpload(filePath string) error {
-	if u.waiting {
-		return fmt.Errorf("can't add new uploads while waiting queued uploads to finish")
-	}
-
 	// We need to use the absolute path of the file, to avoid multiple uploads of the same file if the tool is executed
 	// from different directories
 	if !filepath.IsAbs(filePath) {
@@ -101,25 +102,40 @@ func (u *ConcurrentUploader) EnqueueUpload(filePath string) error {
 		return nil
 	}
 
+	// Join the group while holding the mutex, so that WaitUploadsCompleted can't miss this upload
+	u.mutex.Lock()
+	if u.waiting {
+		u.mutex.Unlock()
+		return fmt.Errorf("can't add new uploads while waiting queued uploads to finish")
+	}
 	if u.stopUploads {
+		u.mutex.Unlock()
 		u.Errors <- fmt.Errorf("stopping uploads (%v)", filePath)
 		return nil
 	}
+	u.waitingGroup.Add(1)
+	u.mutex.Unlock()
 
-	started := make(chan bool)
-	go u.uploadFile(filePath, started)
-	<-started
+	go u.uploadFile(filePath)
 
 	return nil
 }
 
 func (u *ConcurrentUploader) wasFileAlreadyUploaded(filePath string) bool {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 	_, uploaded := u.uploadedFiles[filePath]
 	return uploaded
 }
 
-func (u *ConcurrentUploader) uploadFile(filePath string, started chan bool) {
-	u.joinGroupAndWaitForTurn(started)
+func (u *ConcurrentUploader) isStopped() bool {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+	return u.stopUploads
+}
+
+func (u *ConcurrentUploader) uploadFile(filePath string) {
+	u.waitForTurn()
 	defer u.leaveGroupAndNotifyNextUpload()
 
 	// Open the file
@@ -148,41 +164,45 @@ func (u *ConcurrentUploader) uploadFile(filePath string, started chan bool) {
 	}
 
 	// Try to upload the image
-	if u.stopUploads {
+	if u.isStopped() {
 		u.sendError(filePath, fmt.Errorf("stopping uploads"))
 	} else if _, err := upload.Upload(); err != nil {
+		u.mutex.Lock()
 		u.stopUploads = true
+		u.mutex.Unlock()
 		u.sendError(filePath, err)
 	} else {
-		u.uploadedFiles[filePath] = true
+		u.AddUploadedFiles(filePath)
 		u.CompletedUploads <- filePath
 	}
 }
 
 func (u *ConcurrentUploader) sendError(filePath string, err error) {
-	u.Errors <- fmt.Errorf("Error with '%s': %s\n", filePath, err)
+	u.Errors <- fmt.Errorf("error with '%s': %s", filePath, err)
 }
 
-func (u *ConcurrentUploader) joinGroupAndWaitForTurn(started chan bool) {
-	u.waitingGroup.Add(1)
-
-	started <- true
-
+func (u *ConcurrentUploader) waitForTurn() {
 	// Insert something in the channel. We remove values from it only when we complete an upload, blocking the
 	// goroutines if we exceed the maxConcurrentUpload
 	u.concurrentLimiter <- true
 }
 
 func (u *ConcurrentUploader) leaveGroupAndNotifyNextUpload() {
-	u.waitingGroup.Done()
-
 	// Remove a value to empty the channel or to unlock a waiting gorutine
 	<-u.concurrentLimiter
+
+	u.waitingGroup.Done()
 }
 
 // Blocks this goroutine until all the upload are completed. You can not add uploads when a goroutine call this method
 func (u *ConcurrentUploader) WaitUploadsCompleted() {
+	u.mutex.Lock()
 	u.waiting = true
+	u.mutex.Unlock()
+
 	u.waitingGroup.Wait()
+
+	u.mutex.Lock()
 	u.waiting = false
+	u.mutex.Unlock()
 }

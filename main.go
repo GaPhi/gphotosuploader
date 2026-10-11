@@ -60,7 +60,12 @@ var (
 
 	// Uploader
 	uploader *utils.ConcurrentUploader
-	timers   = make(map[string]*time.Timer)
+
+	// Pending file system events, one timer per file (protected by timersMutex)
+	timersMutex   sync.Mutex
+	timers        = make(map[string]*time.Timer)
+	timersStopped bool
+	pendingEvents sync.WaitGroup
 
 	// Statistics
 	uploadedFilesCount = 0
@@ -91,7 +96,8 @@ func main() {
 		<-interrupted
 		if watching.Load() {
 			close(stopWatching)
-			return
+			log.Println("Stopping, waiting for the running uploads (CTRL + C again to exit now)")
+			<-interrupted
 		}
 		saveCookies(&credentials)
 		log.Println("Interrupted")
@@ -139,7 +145,7 @@ func main() {
 	// Delete too old media items
 	if deleteBefore != noDeleteBefore {
 		log.Printf("Deleting media items before %v...\n", time.Unix(0, deleteBefore*1000000).Local())
-		mediaItems, err := api.ListAllMediaItemsBefore(credentials, deleteBefore, func(mediaItemsPart []api.MediaItem, err error) {
+		mediaItems, err := api.ListAllMediaItemsBefore(credentials, deleteBefore, func(mediaItemsPart []api.MediaItem, _ error) {
 			// No item?
 			if len(mediaItemsPart) == 0 {
 				return
@@ -152,8 +158,7 @@ func main() {
 			}
 
 			// Send too old media items to trash
-			err = api.DeleteMediaItems(credentials, ids, api.SendToTrash)
-			if err != nil {
+			if err := api.DeleteMediaItems(credentials, ids, api.SendToTrash); err != nil {
 				log.Printf("Media items deletion FAILED: %v\n", err)
 			} else {
 				log.Printf("%v media items deleted between %v and %v\n",
@@ -236,8 +241,9 @@ func main() {
 		fatalf(&credentials, "Can't create uploader: %v\n", err)
 	}
 
-	stopHandler := make(chan bool)
-	go handleUploaderEvents(stopHandler)
+	stopHandler := make(chan struct{})
+	handlerStopped := make(chan struct{})
+	go handleUploaderEvents(stopHandler, handlerStopped)
 
 	loadAlreadyUploadedFiles()
 
@@ -251,17 +257,14 @@ func main() {
 	if len(directoriesToWatch) > 0 {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			panic(err)
+			fatalf(&credentials, "Can't create the file system watcher: %v\n", err)
 		}
-		defer func(watcher *fsnotify.Watcher) {
-			_ = watcher.Close()
-		}(watcher)
-		go handleFileSystemEvents(watcher, stopHandler)
+		go handleFileSystemEvents(watcher)
 
 		// Add all the directories passed as argument to the watcher
 		for _, name := range directoriesToWatch {
 			if err := startToWatch(name, watcher); err != nil {
-				panic(err)
+				fatalf(&credentials, "Can't watch %v: %v\n", name, err)
 			}
 		}
 
@@ -270,12 +273,16 @@ func main() {
 		// Wait for CTRL + C
 		watching.Store(true)
 		<-stopWatching
+
+		// Stop receiving events, then let the running uploads complete
+		_ = watcher.Close()
+		stopPendingEvents()
+		pendingEvents.Wait()
+		uploader.WaitUploadsCompleted()
 	}
 
-	stopHandler <- true
-	<-stopHandler
-	stopHandler <- true
-	<-stopHandler
+	close(stopHandler)
+	<-handlerStopped
 
 	// Query storage
 	if queryStorage {
@@ -284,7 +291,11 @@ func main() {
 		if err != nil {
 			fatalf(&credentials, "Can't get storage data: %v\n", err)
 		}
-		log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100.0*used/total)
+		if total > 0 {
+			log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100*used/total)
+		} else {
+			log.Printf("Storage: %v used\n", used)
+		}
 	}
 
 	// Keep the cookies updated by Google during the run
@@ -468,7 +479,7 @@ func uploadArgumentsFiles() {
 	}
 }
 
-func handleUploaderEvents(exiting chan bool) {
+func handleUploaderEvents(stop <-chan struct{}, stopped chan<- struct{}) {
 	for {
 		select {
 		case info := <-uploader.CompletedUploads:
@@ -491,9 +502,9 @@ func handleUploaderEvents(exiting chan bool) {
 			log.Printf("Upload error: %v\n", err)
 			errorsCount++
 
-		case <-exiting:
-			exiting <- true
-			break
+		case <-stop:
+			close(stopped)
+			return
 		}
 	}
 }
@@ -519,57 +530,95 @@ func startToWatch(filePath string, fsWatcher *fsnotify.Watcher) error {
 }
 
 func handleFileChange(event fsnotify.Event, fsWatcher *fsnotify.Watcher) {
+	if utils.IsIgnoredPath(event.Name) {
+		return
+	}
+
 	// Use a map of timer to ignore different consecutive events for the same file.
 	// (when the os writes a file to the disk, sometimes it repetitively sends same events)
+	timersMutex.Lock()
+	defer timersMutex.Unlock()
+	if timersStopped {
+		return
+	}
+
+	// Cancel the pending timer, if any
 	if timer, exists := timers[event.Name]; exists {
-
-		// Cancel the timer
-		cancelled := timer.Stop()
-
-		if cancelled && event.Op != fsnotify.Remove && event.Op != fsnotify.Rename {
-			// Postpone the file upload
-			timer.Reset(eventDelay)
+		delete(timers, event.Name)
+		if timer.Stop() {
+			pendingEvents.Done()
 		}
-	} else if event.Op != fsnotify.Remove && event.Op != fsnotify.Rename {
-		if utils.IsIgnoredPath(event.Name) {
-			return
-		}
-		timer = time.AfterFunc(eventDelay, func() {
-			log.Printf("Finally consuming events for the %v file", event.Name)
+	}
+	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+		return
+	}
 
-			if info, err := os.Stat(event.Name); err != nil {
-				log.Println(err)
-			} else if !info.IsDir() {
-				// Upload file
-				_ = uploader.EnqueueUpload(event.Name)
-			} else if watchRecursively {
-				_ = startToWatch(event.Name, fsWatcher)
+	// (Re)start the delay before consuming the file
+	var timer *time.Timer
+	pendingEvents.Add(1)
+	timer = time.AfterFunc(eventDelay, func() {
+		defer pendingEvents.Done()
+
+		timersMutex.Lock()
+		if timers[event.Name] == timer {
+			delete(timers, event.Name)
+		}
+		timersMutex.Unlock()
+
+		log.Printf("Finally consuming events for the %v file", event.Name)
+
+		if info, err := os.Stat(event.Name); err != nil {
+			log.Println(err)
+		} else if !info.IsDir() {
+			// Upload file
+			if err := uploader.EnqueueUpload(event.Name); err != nil {
+				log.Printf("Not uploading '%v': %v\n", event.Name, err)
 			}
-		})
-		timers[event.Name] = timer
+		} else if watchRecursively {
+			if err := startToWatch(event.Name, fsWatcher); err != nil {
+				log.Printf("Can't watch %v: %v\n", event.Name, err)
+			}
+		}
+	})
+	timers[event.Name] = timer
+}
+
+// Cancel the file events not consumed yet and ignore the next ones
+func stopPendingEvents() {
+	timersMutex.Lock()
+	defer timersMutex.Unlock()
+	timersStopped = true
+	for name, timer := range timers {
+		if timer.Stop() {
+			pendingEvents.Done()
+			log.Printf("Not uploading '%v': stopped before the end of its event delay\n", name)
+		}
+		delete(timers, name)
 	}
 }
 
-func handleFileSystemEvents(fsWatcher *fsnotify.Watcher, exiting chan bool) {
+func handleFileSystemEvents(fsWatcher *fsnotify.Watcher) {
 	for {
 		select {
-		case event := <-fsWatcher.Events:
+		case event, ok := <-fsWatcher.Events:
+			if !ok {
+				return
+			}
 			handleFileChange(event, fsWatcher)
 
-		case err := <-fsWatcher.Errors:
+		case err, ok := <-fsWatcher.Errors:
+			if !ok {
+				return
+			}
 			log.Println(err)
-
-		case <-exiting:
-			exiting <- true
-			return
 		}
 	}
 }
 
 func loadAlreadyUploadedFiles() {
-	file, err := os.OpenFile(uploadedListFile, os.O_CREATE, 0666)
+	file, err := os.OpenFile(uploadedListFile, os.O_CREATE|os.O_RDONLY, 0666)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Can't open the uploaded files list %v: %v\n", uploadedListFile, err)
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
@@ -578,5 +627,8 @@ func loadAlreadyUploadedFiles() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		uploader.AddUploadedFiles(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Can't read the uploaded files list %v: %v\n", uploadedListFile, err)
 	}
 }

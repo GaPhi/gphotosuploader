@@ -134,7 +134,7 @@ func (u *Upload) uploadFile() (token string, err error) {
 
 	// Prepare request headers
 	req.Header.Add("content-type", "application/octet-stream")
-	req.Header.Add("content-length", fmt.Sprintf("%v", u.Options.FileSize))
+	req.ContentLength = u.Options.FileSize
 	req.Header.Add("X-HTTP-Method-Override", "PUT")
 
 	// Upload the image
@@ -149,7 +149,10 @@ func (u *Upload) uploadFile() (token string, err error) {
 	// Parse the response
 	jsonRes, err := io.ReadAll(res.Body)
 	if err != nil {
-		return "", nil
+		return "", responseReadingError()
+	}
+	if res.StatusCode >= 300 {
+		return "", fmt.Errorf("can't upload the image, got HTTP %v: %s", res.StatusCode, jsonRes)
 	}
 
 	return jsonparser.GetString(jsonRes, "sessionStatus", "additionalInfo", "uploader_service.GoogleRupioAdditionalInfo", "completionInfo", "customerSpecificInfo", "upload_token_base64")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -69,7 +70,8 @@ func NewCookieCredentialsFromJson(in io.Reader) (*CookieCredentials, error) {
 func NewCookieCredentials(cookies []*http.Cookie, parameters *PersistentParameters) *CookieCredentials {
 	return &CookieCredentials{
 		Client: &http.Client{
-			Jar: createJarWithCookies(cookies),
+			Jar:       createJarWithCookies(cookies),
+			Transport: newTransport(),
 		},
 		PersistentParameters: parameters,
 		RuntimeParameters:    &RuntimeParameters{},
@@ -166,4 +168,14 @@ func prepareCookiesForSerialization(cookies []*http.Cookie) {
 		}
 		cookie.Path = "/"
 	}
+}
+
+// Transport with timeouts, so that a stalled connection fails instead of blocking the tool forever.
+// There is no global timeout: uploading a big video can legitimately take a long time.
+func newTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+	transport.TLSHandshakeTimeout = 30 * time.Second
+	transport.ResponseHeaderTimeout = 5 * time.Minute
+	return transport
 }

@@ -126,10 +126,7 @@ func ListMediaItems(credentials auth.CookieCredentials, before interface{}, page
 		}
 		// This data is not always present (2025-10-25: last array index is 9)
 		// As this is not used by this tool, we just ignore the potential error
-		mediaItem.MediaItemSn, err = jsonparser.GetInt(value, "[14]")
-//		if err != nil {
-//			return
-//		}
+		mediaItem.MediaItemSn, _ = jsonparser.GetInt(value, "[14]")
 		mediaItems = append(mediaItems, mediaItem)
 	}, "[0]")
 

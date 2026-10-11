@@ -78,7 +78,7 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 		}
 
 		// Valid response?
-		if bytes.Equal(jsonRes[0:len(jsonHeader)], jsonHeader) {
+		if bytes.HasPrefix(jsonRes, jsonHeader) {
 			// Skip first characters
 			jsonRes = jsonRes[len(jsonHeader):]
 			innerJsonRes, err := jsonparser.GetString(jsonRes, "[0]", "[2]")
