@@ -23,8 +23,12 @@ import (
 
 const noDeleteBefore = -1 << 63
 
-// Delay between two cookies rotations while watching directories
+// Delay between two cookies rotations during a run
 const cookiesRotationInterval = 24 * time.Hour
+
+// Minimum delay between two calls to Google to rotate the cookies, across runs (Google answers HTTP 429 when
+// called more than about once a minute, and the cookies stay valid for weeks)
+const cookiesRotationMinInterval = time.Hour
 
 var (
 	// CLI arguments
@@ -390,6 +394,15 @@ func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
 	// Never rotate if the result can't be saved: the values kept in the auth file would be dropped by Google
 	if err := checkAuthFileWritable(); err != nil {
 		log.Printf("Auth file %v is not writable, cookies not rotated: %v\n", authFile, err)
+		return
+	}
+
+	// Don't call Google again if the cookies were rotated recently, by this run or a previous one
+	if credentials.RotatedWithin(cookiesRotationMinInterval) {
+		log.Printf("Cookies rotated at %v, next rotation after %v\n",
+			credentials.LastRotation().Local().Format(time.DateTime),
+			credentials.LastRotation().Add(cookiesRotationMinInterval).Local().Format(time.DateTime))
+		saveCookies(credentials)
 		return
 	}
 

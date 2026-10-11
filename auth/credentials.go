@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -20,6 +21,9 @@ const (
 
 type PersistentParameters struct {
 	UserId string `json:"userId"`
+
+	// Time of the last accepted call to RotateCookiesUrl (zero if unknown)
+	CookiesRotatedAt time.Time `json:"cookiesRotatedAt,omitzero"`
 }
 
 type RuntimeParameters struct {

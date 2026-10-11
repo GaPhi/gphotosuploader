@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Same shape as an auth file written by SerializeToFile
@@ -94,5 +95,72 @@ func TestRotateCookiesRefused(t *testing.T) {
 		if c.cookieValue("__Secure-1PSIDTS") != "old" {
 			t.Errorf("status %v: cookie changed", status)
 		}
+	}
+}
+
+func TestRotationTimeIsRemembered(t *testing.T) {
+	c, _ := NewCookieCredentialsFromJson(strings.NewReader(testAuthFile))
+	if !c.LastRotation().IsZero() || c.RotatedWithin(time.Hour) {
+		t.Fatalf("auth file without rotation time: last=%v", c.LastRotation())
+	}
+
+	// Never written while unknown
+	out := &bytes.Buffer{}
+	_ = c.Serialize(out)
+	if strings.Contains(out.String(), "cookiesRotatedAt") {
+		t.Errorf("zero rotation time written: %v", out.String())
+	}
+
+	c.Client.Transport = &fakeGoogle{t: t, status: http.StatusOK}
+	if _, err := c.RotateCookies(); err != nil {
+		t.Fatal(err)
+	}
+	if !c.RotatedWithin(time.Hour) {
+		t.Fatalf("rotation not remembered: last=%v", c.LastRotation())
+	}
+
+	// Survives a save and a reload
+	out.Reset()
+	_ = c.Serialize(out)
+	reloaded, err := NewCookieCredentialsFromJson(bytes.NewReader(out.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.LastRotation().Equal(c.LastRotation()) || !reloaded.RotatedWithin(time.Hour) {
+		t.Errorf("rotation time lost: %v != %v", reloaded.LastRotation(), c.LastRotation())
+	}
+	if reloaded.PersistentParameters.UserId != "42" {
+		t.Errorf("userId lost")
+	}
+}
+
+func TestRotationTimeNotSetWhenRefused(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusTooManyRequests} {
+		c, _ := NewCookieCredentialsFromJson(strings.NewReader(testAuthFile))
+		c.Client.Transport = &fakeGoogle{t: t, status: status}
+		_, _ = c.RotateCookies()
+		if !c.LastRotation().IsZero() {
+			t.Errorf("status %v: rotation time set", status)
+		}
+	}
+}
+
+func TestRotatedWithin(t *testing.T) {
+	for _, tc := range []struct {
+		ago  time.Duration
+		want bool
+	}{
+		{time.Minute, true},
+		{59 * time.Minute, true},
+		{61 * time.Minute, false},
+		{-time.Hour, false}, // in the future: clock changed
+	} {
+		c := &CookieCredentials{PersistentParameters: &PersistentParameters{CookiesRotatedAt: time.Now().Add(-tc.ago)}}
+		if got := c.RotatedWithin(time.Hour); got != tc.want {
+			t.Errorf("rotated %v ago: got %v, want %v", tc.ago, got, tc.want)
+		}
+	}
+	if (&CookieCredentials{}).RotatedWithin(time.Hour) {
+		t.Errorf("no persistent parameters: got true")
 	}
 }

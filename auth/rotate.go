@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const (
@@ -47,7 +48,32 @@ func (c *CookieCredentials) RotateCookies() (bool, error) {
 		return false, fmt.Errorf("auth: RotateCookies returned HTTP %v", res.StatusCode)
 	}
 
+	// Remembered in the auth file by SerializeToFile, to avoid calling Google again too soon
+	if c.PersistentParameters == nil {
+		c.PersistentParameters = &PersistentParameters{}
+	}
+	c.PersistentParameters.CookiesRotatedAt = time.Now()
+
 	return c.cookieValue(rotatedCookieName) != before, nil
+}
+
+// LastRotation returns the time of the last accepted rotation, zero if unknown
+func (c *CookieCredentials) LastRotation() time.Time {
+	if c.PersistentParameters == nil {
+		return time.Time{}
+	}
+	return c.PersistentParameters.CookiesRotatedAt
+}
+
+// RotatedWithin tells if the cookies were rotated less than d ago.
+// A rotation time in the future (clock changed) is ignored.
+func (c *CookieCredentials) RotatedWithin(d time.Duration) bool {
+	last := c.LastRotation()
+	if last.IsZero() {
+		return false
+	}
+	elapsed := time.Since(last)
+	return elapsed >= 0 && elapsed < d
 }
 
 // Value of a cookie as it would be sent to Google Photos ("" if absent)
