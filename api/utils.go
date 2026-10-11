@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -23,6 +24,9 @@ var (
 	// JSON response header (cannot be an actual constant in Go)
 	jsonHeader  = []byte{')', ']', '}', '\'', '\n', '\n'}
 	LogRequests bool
+
+	// Returned (wrapped) when the Google account storage is full
+	ErrNoSpaceLeft = errors.New("no space left")
 )
 
 func responseReadingError() error {
@@ -90,7 +94,7 @@ func doRequest(credentials auth.CookieCredentials, jsonReq []interface{}) ([]byt
 			spaceUsed, errSpaceUsed := jsonparser.GetInt(jsonRes, "[0]", "[5]", "[2]", "[0]", "[1]", "[1]", "[0]")
 			spaceAllowed, errSpaceAllowed := jsonparser.GetInt(jsonRes, "[0]", "[5]", "[2]", "[0]", "[1]", "[1]", "[1]")
 			if err == nil && errSpaceUsed == nil && errSpaceAllowed == nil && spaceUsed > spaceAllowed {
-				return jsonRes, responseFailure(fmt.Sprintf("No space left: %v/%v (%v%%) (%v)", spaceUsed, spaceAllowed, 100.0*spaceUsed/spaceAllowed, failure), jsonRes)
+				return jsonRes, fmt.Errorf("failure: %w: %v/%v (%v%%) (%v) (%v)", ErrNoSpaceLeft, spaceUsed, spaceAllowed, 100*spaceUsed/spaceAllowed, failure, string(jsonRes))
 			}
 			if err == nil {
 				return jsonRes, responseFailure(failure, jsonRes)

@@ -117,13 +117,13 @@ func (u *Upload) Upload() (*UploadResult, error) {
 	// First request to get the upload url
 	err := u.requestUploadURL()
 	if err != nil {
-		return &UploadResult{Uploaded: false}, errors.New("can't get an upload url. Try to wait about 24h before a new attempt or refer to this issue: https://github.com/simonedegiacomi/gphotosuploader/issues/31")
+		return &UploadResult{Uploaded: false}, fmt.Errorf("can't get an upload url (%w). Try to wait about 24h before a new attempt or refer to this issue: https://github.com/simonedegiacomi/gphotosuploader/issues/31", err)
 	}
 
 	// Upload the real image file
 	token, err := u.uploadFile()
 	if err != nil {
-		return &UploadResult{Uploaded: false}, errors.New("can't upload file to the url obtained from the previously request")
+		return &UploadResult{Uploaded: false}, fmt.Errorf("can't upload file to the url obtained from the previously request: %w", err)
 	}
 
 	// Enable the photo

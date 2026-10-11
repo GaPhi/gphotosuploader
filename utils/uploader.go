@@ -1,14 +1,24 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/GaPhi/gphotosuploader/api"
 	"github.com/GaPhi/gphotosuploader/auth"
+)
+
+const (
+	// Number of consecutive upload errors after which the uploads are paused
+	maxConsecutiveErrors = 3
+
+	// Duration of a pause of the uploads, after which watch mode tries again
+	uploadsPauseDuration = time.Hour
 )
 
 // Simple client used to implement the tool that can upload multiple photos or videos at once
@@ -21,7 +31,7 @@ type ConcurrentUploader struct {
 	// Buffered channel to limit concurrent uploads
 	concurrentLimiter chan bool
 
-	// Protects uploadedFiles, waiting and stopUploads, used by concurrent uploads and file system events
+	// Protects uploadedFiles, waiting, consecutiveErrors and pausedUntil, used by concurrent uploads and file system events
 	mutex sync.Mutex
 
 	// Map of uploaded files (used as a set)
@@ -33,8 +43,11 @@ type ConcurrentUploader struct {
 	// Flag to indicate if the client is waiting for all the upload to finish
 	waiting bool
 
-	// Flag to indicate that no other upload shall be attempted
-	stopUploads bool
+	// Number of upload errors since the last successful upload
+	consecutiveErrors int
+
+	// No upload shall be attempted before this time (after a "no space left" error or too many consecutive errors)
+	pausedUntil time.Time
 
 	CompletedUploads chan string
 	IgnoredUploads   chan string
@@ -108,9 +121,9 @@ func (u *ConcurrentUploader) EnqueueUpload(filePath string) error {
 		u.mutex.Unlock()
 		return fmt.Errorf("can't add new uploads while waiting queued uploads to finish")
 	}
-	if u.stopUploads {
+	if pausedUntil := u.pausedUntil; time.Now().Before(pausedUntil) {
 		u.mutex.Unlock()
-		u.Errors <- fmt.Errorf("stopping uploads (%v)", filePath)
+		u.sendError(filePath, fmt.Errorf("uploads paused until %v", pausedUntil.Local().Format(time.DateTime)))
 		return nil
 	}
 	u.waitingGroup.Add(1)
@@ -128,10 +141,35 @@ func (u *ConcurrentUploader) wasFileAlreadyUploaded(filePath string) bool {
 	return uploaded
 }
 
-func (u *ConcurrentUploader) isStopped() bool {
+// Returns the time until which the uploads are paused, zero if they aren't
+func (u *ConcurrentUploader) isPaused() time.Time {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
-	return u.stopUploads
+	if time.Now().Before(u.pausedUntil) {
+		return u.pausedUntil
+	}
+	return time.Time{}
+}
+
+// Pause the uploads when the storage is full or after too many consecutive errors (expired cookies, quota, network...),
+// instead of failing the same way for every file. Returns the end of the pause if the uploads are now paused.
+func (u *ConcurrentUploader) recordUploadError(err error) time.Time {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+	u.consecutiveErrors++
+	if errors.Is(err, api.ErrNoSpaceLeft) || u.consecutiveErrors >= maxConsecutiveErrors {
+		u.consecutiveErrors = 0
+		u.pausedUntil = time.Now().Add(uploadsPauseDuration)
+		return u.pausedUntil
+	}
+	return time.Time{}
+}
+
+func (u *ConcurrentUploader) recordUploadSuccess(filePath string) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+	u.consecutiveErrors = 0
+	u.uploadedFiles[filePath] = true
 }
 
 func (u *ConcurrentUploader) uploadFile(filePath string) {
@@ -164,15 +202,16 @@ func (u *ConcurrentUploader) uploadFile(filePath string) {
 	}
 
 	// Try to upload the image
-	if u.isStopped() {
-		u.sendError(filePath, fmt.Errorf("stopping uploads"))
-	} else if _, err := upload.Upload(); err != nil {
-		u.mutex.Lock()
-		u.stopUploads = true
-		u.mutex.Unlock()
+	if pausedUntil := u.isPaused(); !pausedUntil.IsZero() {
+		u.sendError(filePath, fmt.Errorf("uploads paused until %v", pausedUntil.Local().Format(time.DateTime)))
+	} else if result, err := upload.Upload(); err != nil && (result == nil || result.ImageUrl == "") {
+		if pausedUntil := u.recordUploadError(err); !pausedUntil.IsZero() {
+			log.Printf("uploader: uploads paused until %v\n", pausedUntil.Local().Format(time.DateTime))
+		}
 		u.sendError(filePath, err)
 	} else {
-		u.AddUploadedFiles(filePath)
+		// The media item is created even if its id couldn't be read (a warning is logged): don't upload it again
+		u.recordUploadSuccess(filePath)
 		u.CompletedUploads <- filePath
 	}
 }

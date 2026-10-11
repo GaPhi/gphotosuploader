@@ -23,6 +23,9 @@ import (
 
 const noDeleteBefore = -1 << 63
 
+// Number of media items sent to trash by each request
+const deletePageSize = 250
+
 // Delay between two cookies rotations during a run
 const cookiesRotationInterval = 24 * time.Hour
 
@@ -51,7 +54,7 @@ var (
 	eventDelay           time.Duration
 	printVersion         bool
 
-	// Serializes the writes of the auth file
+	// Serializes the cookies rotations and the writes of the auth file
 	authFileMutex sync.Mutex
 
 	// CTRL + C stops the watching instead of exiting
@@ -145,32 +148,32 @@ func main() {
 	// Delete too old media items
 	if deleteBefore != noDeleteBefore {
 		log.Printf("Deleting media items before %v...\n", time.Unix(0, deleteBefore*1000000).Local())
-		mediaItems, err := api.ListAllMediaItemsBefore(credentials, deleteBefore, func(mediaItemsPart []api.MediaItem, _ error) {
-			// No item?
-			if len(mediaItemsPart) == 0 {
-				return
-			}
+		// List everything first: deleting while paginating could make the next page skip media items
+		mediaItems, err := api.ListAllMediaItemsBefore(credentials, deleteBefore, nil)
+		if err != nil {
+			fatalf(&credentials, "Can't list old media items: %v\n", err)
+		}
+		log.Printf("Got media items to delete: %v\n", len(mediaItems))
 
-			// Get ids as an array
+		// Send too old media items to trash, page by page
+		deleted := 0
+		for i := 0; i < len(mediaItems); i += deletePageSize {
+			mediaItemsPart := mediaItems[i:min(i+deletePageSize, len(mediaItems))]
 			ids := make([]string, len(mediaItemsPart))
 			for i, mediaItem := range mediaItemsPart {
 				ids[i] = mediaItem.MediaItemId
 			}
-
-			// Send too old media items to trash
 			if err := api.DeleteMediaItems(credentials, ids, api.SendToTrash); err != nil {
 				log.Printf("Media items deletion FAILED: %v\n", err)
-			} else {
-				log.Printf("%v media items deleted between %v and %v\n",
-					len(ids),
-					time.Unix(0, mediaItemsPart[len(mediaItemsPart)-1].StartDate*1000000).Local(),
-					time.Unix(0, mediaItemsPart[0].StartDate*1000000).Local())
+				continue
 			}
-		})
-		if err != nil {
-			fatalf(&credentials, "Can't delete old media items: %v\n", err)
+			deleted += len(ids)
+			log.Printf("%v media items deleted between %v and %v\n",
+				len(ids),
+				time.Unix(0, mediaItemsPart[len(mediaItemsPart)-1].StartDate*1000000).Local(),
+				time.Unix(0, mediaItemsPart[0].StartDate*1000000).Local())
 		}
-		log.Printf("Media items deleted: %v\n", len(mediaItems))
+		log.Printf("Media items deleted: %v/%v\n", deleted, len(mediaItems))
 	}
 
 	// Empty trash
@@ -402,6 +405,9 @@ func initAuthentication() auth.CookieCredentials {
 // Renew the short-lived session cookies, then write the cookies sent back by Google into the auth file.
 // A failed rotation is not fatal: the current cookies are still valid at this point.
 func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
+	authFileMutex.Lock()
+	defer authFileMutex.Unlock()
+
 	// Never rotate if the result can't be saved: the values kept in the auth file would be dropped by Google
 	if err := checkAuthFileWritable(); err != nil {
 		log.Printf("Auth file %v is not writable, cookies not rotated: %v\n", authFile, err)
@@ -413,7 +419,7 @@ func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
 		log.Printf("Cookies rotated at %v, next rotation after %v\n",
 			credentials.LastRotation().Local().Format(time.DateTime),
 			credentials.LastRotation().Add(cookiesRotationMinInterval).Local().Format(time.DateTime))
-		saveCookies(credentials)
+		writeAuthFile(credentials)
 		return
 	}
 
@@ -425,18 +431,22 @@ func rotateAndSaveCookies(credentials *auth.CookieCredentials) {
 		log.Println("Cookies not rotated (Google didn't send new ones)")
 	}
 
-	saveCookies(credentials)
+	writeAuthFile(credentials)
 }
 
 // Write into the auth file the cookies currently held, including the ones updated by Google in any response
 func saveCookies(credentials *auth.CookieCredentials) {
+	authFileMutex.Lock()
+	defer authFileMutex.Unlock()
+	writeAuthFile(credentials)
+}
+
+// Same as saveCookies, authFileMutex being already locked
+func writeAuthFile(credentials *auth.CookieCredentials) {
 	if err := checkAuthFileWritable(); err != nil {
 		log.Printf("Auth file %v is not writable, not updated: %v\n", authFile, err)
 		return
 	}
-
-	authFileMutex.Lock()
-	defer authFileMutex.Unlock()
 	if err := credentials.SerializeToFile(authFile); err != nil {
 		log.Printf("Can't update auth file %v: %v\n", authFile, err)
 	}
