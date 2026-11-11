@@ -133,15 +133,24 @@ what happened:
 | 5 | Some uploads failed because the Google account storage is full |
 | 6 | Some uploads failed for another reason |
 
+With `--json`, a single JSON object summarizing the run is printed on stdout when the tool exits (the logs stay on
+stderr), for example:
+```json
+{"exitCode":0,"userId":"1019...","credentialsValid":true,"storage":{"used":16168521096,"total":16106127360},
+ "albumId":"AF1Qip...","deletedItems":0,"deletedAlbums":0,"uploaded":["/path/video.mkv"],"ignored":0,"errors":[],
+ "noSpaceLeft":false}
+```
+`error` holds the message of a fatal error; `storage`, `albumId` and `sharedAlbumId` are only present when queried or
+created/shared.
+
 ### Library
 You can read a simple example [here](documentation/examples/simple.go) or get the documentation [here](http://godoc.org/github.com/GaPhi/gphotosuploader).
 
 ## Development
-if you want to continue the development of this tool/library, execute first the following script:
-```
-githooks/create-links
-```
-This will links the hooks used to handle the version of the tool.
+The version printed by `--version` comes from the build information recorded by the Go toolchain (no git hook needed):
+the module pseudo-version (commit date and hash) with `go install github.com/GaPhi/gphotosuploader@<commit>`, or the
+commit of the clone with `go build` (suffixed with `-dirty` if there are uncommitted changes).
+Run `go vet ./... && go test -race ./...` before committing.
 
 ## Used libreries
 * [fsnotify](https://github.com/fsnotify/fsnotify): To watch for file system events;

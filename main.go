@@ -96,10 +96,20 @@ func main() {
 	parseCliArguments()
 	if printVersion {
 		fmt.Printf("Hash:\t%s\nCommit date:\t%s\n", version.Hash, version.Date)
+		if version.Module != "" && version.Module != "(devel)" && version.Module != version.Hash {
+			fmt.Printf("Module:\t%s\n", version.Module)
+		}
 		os.Exit(0)
 	}
 
 	credentials := initAuthentication()
+	updateResult(func(r *runResult) {
+		valid := true
+		r.CredentialsValid = &valid
+		if credentials.PersistentParameters != nil {
+			r.UserId = credentials.PersistentParameters.UserId
+		}
+	})
 
 	// Keep the session alive during the whole run
 	go func() {
@@ -119,8 +129,7 @@ func main() {
 			<-interrupted
 		}
 		saveCookies(&credentials)
-		log.Println("Interrupted")
-		os.Exit(1)
+		exitf(exitError, "Interrupted\n")
 	}()
 
 	var err error
@@ -148,6 +157,7 @@ func main() {
 				log.Printf("Media items deletion FAILED: %v\n", err)
 			} else {
 				log.Printf("%v media items deleted\n", len(ids))
+				updateResult(func(r *runResult) { r.DeletedItems += len(ids) })
 			}
 		}
 	}
@@ -181,6 +191,7 @@ func main() {
 				time.Unix(0, mediaItemsPart[0].StartDate*1000000).Local())
 		}
 		log.Printf("Media items deleted: %v/%v\n", deleted, len(mediaItems))
+		updateResult(func(r *runResult) { r.DeletedItems += deleted })
 	}
 
 	// Empty trash
@@ -204,6 +215,7 @@ func main() {
 			log.Printf("Empty album %v (%v) deletion FAILED\n", album.AlbumName, album.AlbumId)
 		}
 		log.Printf("Album listed: %v\n", len(albums))
+		updateResult(func(r *runResult) { r.DeletedAlbums = len(deleted) })
 		if err != nil {
 			log.Printf("Can't list albums: %v\n", err)
 		}
@@ -216,6 +228,7 @@ func main() {
 			fatalf(&credentials, "Can't create album: %v\n", err)
 		}
 		log.Printf("New album with ID '%v' created\n", albumId)
+		updateResult(func(r *runResult) { r.AlbumId = albumId })
 	}
 
 	// Set album sort kind
@@ -235,12 +248,14 @@ func main() {
 				fatalf(&credentials, "Can't share album: %v\n", err)
 			}
 			log.Printf("Sharing album '%v' with user '%v' as '%v'\n", albumId, shareWithUser, sharedAlbumId)
+			updateResult(func(r *runResult) { r.AlbumId, r.SharedAlbumId = albumId, sharedAlbumId })
 		} else if len(albumId) == 70 {
 			err = api.AlbumShareAddUser(credentials, albumId, shareWithUser)
 			if err != nil {
 				fatalf(&credentials, "Can't add user to shared album: %v\n", err)
 			}
 			log.Printf("User '%v' added to shared album '%v'\n", shareWithUser, albumId)
+			updateResult(func(r *runResult) { r.SharedAlbumId = albumId })
 		} else {
 			fatalf(&credentials, "Album Id length unrecognized: %v\n", albumId)
 		}
@@ -304,6 +319,7 @@ func main() {
 		if err != nil {
 			fatalf(&credentials, "Can't get storage data: %v\n", err)
 		}
+		updateResult(func(r *runResult) { r.Storage = &storageResult{Used: used, Total: total} })
 		if total > 0 {
 			log.Printf("Storage: %v/%v (%v%%)\n", used, total, 100*used/total)
 		} else {
@@ -315,7 +331,7 @@ func main() {
 	saveCookies(&credentials)
 
 	log.Printf("Done (%v files uploaded, %v files ignored, %v errors)", uploadedFilesCount, ignoredCount, errorsCount)
-	os.Exit(uploadsExitCode(errorsCount, noSpaceLeftSeen))
+	exit(uploadsExitCode(errorsCount, noSpaceLeftSeen))
 }
 
 // Exit code at the end of a run, depending on the upload errors
@@ -328,12 +344,6 @@ func uploadsExitCode(errorsNb int, noSpaceLeft bool) int {
 	default:
 		return exitOK
 	}
-}
-
-// Log then exit with the given code
-func exitf(code int, format string, v ...interface{}) {
-	log.Printf(format, v...)
-	os.Exit(code)
 }
 
 // Parse CLI arguments
@@ -356,6 +366,7 @@ func parseCliArguments() {
 	delay := flag.Int("eventDelay", 3, "Distance of time to wait to consume different events of the same file (seconds)")
 	flag.BoolVar(&api.LogRequests, "debug", false, "Log Google requests and responses")
 	flag.BoolVar(&printVersion, "version", false, "Print version and commit date")
+	flag.BoolVar(&jsonOutput, "json", false, "Print a JSON summary of the run on stdout (logs stay on stderr)")
 	flag.BoolVar(&nonInteractive, "nonInteractive", false, "Never ask anything: exit with code 3 instead of proposing the authentication wizard")
 
 	flag.Parse()
@@ -385,6 +396,7 @@ func initAuthentication() auth.CookieCredentials {
 			exitf(exitNetwork, "Can't check validity of credentials (%v)\n", err)
 		} else if !validity.Valid {
 			log.Printf("Credentials are not valid! %v\n", validity.Reason)
+			updateResult(func(r *runResult) { valid := false; r.CredentialsValid = &valid })
 			credentials = nil
 		} else {
 			log.Println("Auth file seems to be valid")
@@ -399,9 +411,9 @@ func initAuthentication() auth.CookieCredentials {
 	}
 
 	if credentials == nil {
-		fmt.Println("The uploader can't continue without valid authentication tokens ...")
-		fmt.Println("Would you like to run the WebDriver CookieCredentials Wizard ? [Yes/No]")
-		fmt.Println("(If you don't know what it is, refer to the README)")
+		fmt.Fprintln(os.Stderr, "The uploader can't continue without valid authentication tokens ...")
+		fmt.Fprintln(os.Stderr, "Would you like to run the WebDriver CookieCredentials Wizard ? [Yes/No]")
+		fmt.Fprintln(os.Stderr, "(If you don't know what it is, refer to the README)")
 
 		var answer string
 		_, _ = fmt.Scanln(&answer)
@@ -412,12 +424,12 @@ func initAuthentication() auth.CookieCredentials {
 		} else {
 			credentials, err = utils.StartWebDriverCookieCredentialsWizard()
 			if err != nil {
-				log.Fatalf("Can't complete the login wizard, got: %v\n", err)
+				exitf(exitAuthInvalid, "Can't complete the login wizard, got: %v\n", err)
 			} else {
 				// Write auth file
 				err = credentials.SerializeToFile(authFile)
 				if err != nil {
-					log.Fatalf("Can't write auth file %v: %v\n", authFile, err)
+					exitf(exitError, "Can't write auth file %v: %v\n", authFile, err)
 				}
 			}
 		}
@@ -493,10 +505,10 @@ func checkAuthFileWritable() error {
 	return file.Close()
 }
 
-// Save the cookies, then exit as log.Fatalf
+// Save the cookies, then exit with exitError
 func fatalf(credentials *auth.CookieCredentials, format string, v ...interface{}) {
 	saveCookies(credentials)
-	log.Fatalf(format, v...)
+	exitf(exitError, format, v...)
 }
 
 // Upload all the file and directories passed as arguments, calling filepath.Walk on each name
@@ -528,6 +540,7 @@ func handleUploaderEvents(stop <-chan struct{}, stopped chan<- struct{}) {
 		case info := <-uploader.CompletedUploads:
 			uploadedFilesCount++
 			log.Printf("Upload of '%v' completed\n", info)
+			updateResult(func(r *runResult) { r.Uploaded = append(r.Uploaded, info) })
 
 			// Update the upload completed file
 			if file, err := os.OpenFile(uploadedListFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666); err != nil {
@@ -540,6 +553,7 @@ func handleUploaderEvents(stop <-chan struct{}, stopped chan<- struct{}) {
 		case info := <-uploader.IgnoredUploads:
 			ignoredCount++
 			log.Printf("Not uploading '%v', it's already been uploaded or it's not a image/video!\n", info)
+			updateResult(func(r *runResult) { r.Ignored++ })
 
 		case err := <-uploader.Errors:
 			log.Printf("Upload error: %v\n", err)
@@ -547,6 +561,10 @@ func handleUploaderEvents(stop <-chan struct{}, stopped chan<- struct{}) {
 			if errors.Is(err, api.ErrNoSpaceLeft) {
 				noSpaceLeftSeen = true
 			}
+			updateResult(func(r *runResult) {
+				r.Errors = append(r.Errors, err.Error())
+				r.NoSpaceLeft = r.NoSpaceLeft || errors.Is(err, api.ErrNoSpaceLeft)
+			})
 
 		case <-stop:
 			close(stopped)
@@ -668,7 +686,7 @@ func loadAlreadyUploadedFiles() {
 		return
 	}
 	if err != nil {
-		log.Fatalf("Can't open the uploaded files list %v: %v\n", uploadedListFile, err)
+		exitf(exitError, "Can't open the uploaded files list %v: %v\n", uploadedListFile, err)
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
@@ -679,6 +697,6 @@ func loadAlreadyUploadedFiles() {
 		uploader.AddUploadedFiles(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("Can't read the uploaded files list %v: %v\n", uploadedListFile, err)
+		exitf(exitError, "Can't read the uploaded files list %v: %v\n", uploadedListFile, err)
 	}
 }
