@@ -217,7 +217,7 @@ func (u *ConcurrentUploader) uploadFile(filePath string) {
 }
 
 func (u *ConcurrentUploader) sendError(filePath string, err error) {
-	u.Errors <- fmt.Errorf("error with '%s': %s", filePath, err)
+	u.Errors <- fmt.Errorf("error with '%s': %w", filePath, err) // %w: callers can test errors.Is(err, api.ErrNoSpaceLeft)
 }
 
 func (u *ConcurrentUploader) waitForTurn() {

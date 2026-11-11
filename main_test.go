@@ -66,3 +66,35 @@ func TestFileEventsAreDebounced(t *testing.T) {
 	handleFileChange(fsnotify.Event{Name: file, Op: fsnotify.Write}, nil)
 	expectConsumed(2)
 }
+
+// The exit code tells scripts whether the uploads were complete, failed for lack of space, or partially failed
+func TestUploadsExitCode(t *testing.T) {
+	cases := []struct {
+		errors      int
+		noSpaceLeft bool
+		expected    int
+	}{
+		{0, false, exitOK},
+		{2, false, exitPartial},
+		{1, true, exitNoSpaceLeft},
+	}
+	for _, c := range cases {
+		if code := uploadsExitCode(c.errors, c.noSpaceLeft); code != c.expected {
+			t.Errorf("uploadsExitCode(%v, %v) = %v, expected %v", c.errors, c.noSpaceLeft, code, c.expected)
+		}
+	}
+}
+
+// A missing uploaded files list is an empty list, and it is not created when only read
+func TestMissingUploadedListIsNotCreated(t *testing.T) {
+	var err error
+	uploader, err = utils.NewUploader(auth.CookieCredentials{}, "", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uploadedListFile = filepath.Join(t.TempDir(), "uploaded.txt")
+	loadAlreadyUploadedFiles()
+	if _, err := os.Stat(uploadedListFile); !os.IsNotExist(err) {
+		t.Errorf("%v created or unexpected error: %v", uploadedListFile, err)
+	}
+}

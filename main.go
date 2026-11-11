@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -74,6 +75,21 @@ var (
 	uploadedFilesCount = 0
 	ignoredCount       = 0
 	errorsCount        = 0
+	noSpaceLeftSeen    = false
+
+	// Never ask anything on stdin (scripts, cron)
+	nonInteractive bool
+)
+
+// Exit codes, so that scripts can react without parsing the logs
+const (
+	exitOK          = 0 // Everything done
+	exitError       = 1 // Any other error (album, sharing, deletion listing, local files...)
+	exitUsage       = 2 // Invalid arguments
+	exitAuthInvalid = 3 // Authentication file missing, unreadable or refused by Google
+	exitNetwork     = 4 // Google could not be reached to check the credentials
+	exitNoSpaceLeft = 5 // Some uploads failed because the Google account storage is full
+	exitPartial     = 6 // Some uploads failed for another reason
 )
 
 func main() {
@@ -108,15 +124,6 @@ func main() {
 	}()
 
 	var err error
-
-	// Get timeline
-	if false {
-		timeline, err := api.GetWholeTimeline(credentials)
-		if err != nil {
-			fatalf(&credentials, "Can't get timeline: %v\n", err)
-		}
-		log.Printf("Got timeline: %v\n", len(timeline))
-	}
 
 	// Delete unsupported media items
 	if deleteUnsupported {
@@ -248,7 +255,10 @@ func main() {
 	handlerStopped := make(chan struct{})
 	go handleUploaderEvents(stopHandler, handlerStopped)
 
-	loadAlreadyUploadedFiles()
+	// The list of already uploaded files is only needed (and created) when something can be uploaded
+	if len(filesToUpload) > 0 || len(directoriesToWatch) > 0 {
+		loadAlreadyUploadedFiles()
+	}
 
 	// Upload files passed as arguments
 	uploadArgumentsFiles()
@@ -305,7 +315,25 @@ func main() {
 	saveCookies(&credentials)
 
 	log.Printf("Done (%v files uploaded, %v files ignored, %v errors)", uploadedFilesCount, ignoredCount, errorsCount)
-	os.Exit(0)
+	os.Exit(uploadsExitCode(errorsCount, noSpaceLeftSeen))
+}
+
+// Exit code at the end of a run, depending on the upload errors
+func uploadsExitCode(errorsNb int, noSpaceLeft bool) int {
+	switch {
+	case noSpaceLeft:
+		return exitNoSpaceLeft
+	case errorsNb > 0:
+		return exitPartial
+	default:
+		return exitOK
+	}
+}
+
+// Log then exit with the given code
+func exitf(code int, format string, v ...interface{}) {
+	log.Printf(format, v...)
+	os.Exit(code)
 }
 
 // Parse CLI arguments
@@ -328,15 +356,16 @@ func parseCliArguments() {
 	delay := flag.Int("eventDelay", 3, "Distance of time to wait to consume different events of the same file (seconds)")
 	flag.BoolVar(&api.LogRequests, "debug", false, "Log Google requests and responses")
 	flag.BoolVar(&printVersion, "version", false, "Print version and commit date")
+	flag.BoolVar(&nonInteractive, "nonInteractive", false, "Never ask anything: exit with code 3 instead of proposing the authentication wizard")
 
 	flag.Parse()
 
 	// Check flags
 	if deleteBefore > time.Now().UnixNano()/1000000 {
-		log.Fatalf("Invalid delteBefore date (after now)\n")
+		exitf(exitUsage, "Invalid deleteBefore date (after now)\n")
 	}
 	if albumId != "" && albumName != "" {
-		log.Fatalf("Can't use album and albumName at the same time\n")
+		exitf(exitUsage, "Can't use album and albumName at the same time\n")
 	}
 
 	// Convert delay as int into duration
@@ -353,7 +382,7 @@ func initAuthentication() auth.CookieCredentials {
 		log.Println("Auth file loaded, checking validity ...")
 		validity, err := credentials.CheckCredentials()
 		if err != nil {
-			log.Fatalf("Can't check validity of credentials (%v)\n", err)
+			exitf(exitNetwork, "Can't check validity of credentials (%v)\n", err)
 		} else if !validity.Valid {
 			log.Printf("Credentials are not valid! %v\n", validity.Reason)
 			credentials = nil
@@ -363,6 +392,10 @@ func initAuthentication() auth.CookieCredentials {
 			// Renew the short-lived cookies and update auth file
 			rotateAndSaveCookies(credentials)
 		}
+	}
+
+	if credentials == nil && nonInteractive {
+		exitf(exitAuthInvalid, "It's not possible to continue without valid authentication tokens (non interactive mode)\n")
 	}
 
 	if credentials == nil {
@@ -375,7 +408,7 @@ func initAuthentication() auth.CookieCredentials {
 		startWizard := len(answer) > 0 && strings.ToLower(answer)[0] == 'y'
 
 		if !startWizard {
-			log.Fatalln("It's not possible to continue, sorry!")
+			exitf(exitAuthInvalid, "It's not possible to continue, sorry!\n")
 		} else {
 			credentials, err = utils.StartWebDriverCookieCredentialsWizard()
 			if err != nil {
@@ -511,6 +544,9 @@ func handleUploaderEvents(stop <-chan struct{}, stopped chan<- struct{}) {
 		case err := <-uploader.Errors:
 			log.Printf("Upload error: %v\n", err)
 			errorsCount++
+			if errors.Is(err, api.ErrNoSpaceLeft) {
+				noSpaceLeftSeen = true
+			}
 
 		case <-stop:
 			close(stopped)
@@ -625,8 +661,12 @@ func handleFileSystemEvents(fsWatcher *fsnotify.Watcher) {
 	}
 }
 
+// Load the list of already uploaded files; a missing list is an empty one (it is created by the first upload)
 func loadAlreadyUploadedFiles() {
-	file, err := os.OpenFile(uploadedListFile, os.O_CREATE|os.O_RDONLY, 0666)
+	file, err := os.Open(uploadedListFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
 	if err != nil {
 		log.Fatalf("Can't open the uploaded files list %v: %v\n", uploadedListFile, err)
 	}

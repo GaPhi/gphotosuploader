@@ -101,3 +101,12 @@ func TestUploadsPausedAfterConsecutiveErrors(t *testing.T) {
 		t.Error("uploads still paused after the end of the pause")
 	}
 }
+
+// The errors sent by the uploader keep the wrapped error, so that a full storage can be detected
+func TestSentErrorsKeepNoSpaceLeft(t *testing.T) {
+	u, _ := NewUploader(auth.CookieCredentials{}, "", 1)
+	go u.sendError("video.mkv", fmt.Errorf("failure: %w: 16/15", api.ErrNoSpaceLeft))
+	if err := <-u.Errors; !errors.Is(err, api.ErrNoSpaceLeft) {
+		t.Errorf("errors.Is(%v, ErrNoSpaceLeft) is false", err)
+	}
+}

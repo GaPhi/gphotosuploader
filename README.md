@@ -115,8 +115,23 @@ gphotosuploader --albumName foo --upload ./image.png
 ```
 
 The tool creates a file (default name: uploaded.txt) which is a list of uploaded files, which will not be
-re-uploaded. You can specify your own file using the uploadedList argument.
+re-uploaded. You can specify your own file using the uploadedList argument. This file is only read and
+created when something is uploaded (--upload or --watch).
 To see all the available arguments, use --help.
+
+#### Scripts
+Use `--nonInteractive` so that the tool never asks anything on stdin (no authentication wizard). The exit code tells
+what happened:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Everything done |
+| 1 | Other error (album, sharing, trash, local files...) |
+| 2 | Invalid arguments |
+| 3 | Authentication file missing, unreadable or refused by Google |
+| 4 | Google could not be reached to check the credentials |
+| 5 | Some uploads failed because the Google account storage is full |
+| 6 | Some uploads failed for another reason |
 
 ### Library
 You can read a simple example [here](documentation/examples/simple.go) or get the documentation [here](http://godoc.org/github.com/GaPhi/gphotosuploader).
