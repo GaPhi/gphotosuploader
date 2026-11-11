@@ -35,6 +35,8 @@ func (ts *AtTokenScraper) ScrapeNewAtToken() (string, error) {
 		return "", err
 	}
 
+	defer func() { _ = page.Body.Close() }()
+
 	script, err := findScript(page)
 	if err != nil {
 		return "", err

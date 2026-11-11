@@ -28,6 +28,7 @@ func (c *CookieCredentials) CheckCredentials() (*CredentialsTestResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = res.Body.Close() }()
 
 	if res.Request.URL.String() != HomeUrl {
 		return &CredentialsTestResult{
